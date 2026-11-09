@@ -7,6 +7,7 @@ mod jobs;
 mod optimizers;
 mod pipeline;
 mod report;
+mod scheduler;
 mod models;
 mod settings;
 
