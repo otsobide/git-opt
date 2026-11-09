@@ -34,17 +34,17 @@ const proposed = computed(() =>
   visible.value.reduce((acc, r) => acc + (r.files_optimized ? r.bytes_before - r.bytes_after : 0), 0),
 )
 
-const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manual', publish: 'Publicación' }
+const TRIGGER: Record<string, string> = { schedule: 'Scheduled', manual: 'Manual', publish: 'Publish' }
 </script>
 
 <template>
   <div class="page">
     <header class="page-head">
       <div>
-        <h1>Actividad</h1>
+        <h1>Activity</h1>
         <p class="lede">
-          Cada comprobación de un repositorio queda registrada, haya encontrado algo o no.
-          <template v-if="proposed > 0">En esta vista se han propuesto {{ formatBytes(proposed) }} menos.</template>
+          Every repository check that found something, failed or was triggered by hand is recorded here.
+          <template v-if="proposed > 0">The runs shown proposed {{ formatBytes(proposed) }} of savings.</template>
         </p>
       </div>
     </header>
@@ -52,9 +52,9 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
     <div class="filters">
       <label class="check">
         <input v-model="onlyChanges" type="checkbox" />
-        Solo ejecuciones con optimizaciones o errores
+        Only runs with optimizations or errors
       </label>
-      <input v-model="search" class="input search" type="search" placeholder="Filtrar por repositorio" aria-label="Filtrar por repositorio" />
+      <input v-model="search" class="input search" type="search" placeholder="Filter by repository" aria-label="Filter by repository" />
     </div>
 
     <p v-if="error" class="notice danger">{{ error }}</p>
@@ -63,14 +63,14 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
       <table class="table">
         <thead>
           <tr>
-            <th>Cuándo</th>
-            <th>Repositorio</th>
-            <th>Origen</th>
-            <th>Resultado</th>
-            <th class="num">Imágenes</th>
-            <th>Ahorro</th>
+            <th>When</th>
+            <th>Repository</th>
+            <th>Trigger</th>
+            <th>Result</th>
+            <th class="num">Images</th>
+            <th>Savings</th>
             <th>PR</th>
-            <th class="num">Duración</th>
+            <th class="num">Duration</th>
           </tr>
         </thead>
         <tbody>
@@ -99,9 +99,9 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
         </tbody>
       </table>
     </div>
-    <p v-else-if="!loading && runs.length" class="empty panel">Nada coincide con el filtro.</p>
+    <p v-else-if="!loading && runs.length" class="empty panel">Nothing matches the filter.</p>
     <p v-else-if="!loading" class="empty panel">
-      Todavía no ha habido ejecuciones. Añade un <RouterLink to="/repos">repositorio</RouterLink> para empezar.
+      No runs yet. Add a <RouterLink to="/repos">repository</RouterLink> to get started.
     </p>
   </div>
 </template>

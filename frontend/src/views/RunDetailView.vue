@@ -30,9 +30,9 @@ const files = computed(() => detail.value?.files ?? [])
 const saved = computed(() => (run.value ? run.value.bytes_before - run.value.bytes_after : 0))
 
 const TRIGGER: Record<string, string> = {
-  schedule: 'Comprobación programada',
-  manual: 'Comprobación manual',
-  publish: 'Publicación de PR',
+  schedule: 'Scheduled check',
+  manual: 'Manual check',
+  publish: 'PR publish',
 }
 
 function dirOf(path: string) {
@@ -46,14 +46,14 @@ function baseOf(path: string) {
 
 <template>
   <div class="page">
-    <nav class="crumbs small" aria-label="Ruta">
-      <RouterLink to="/activity">Actividad</RouterLink>
+    <nav class="crumbs small" aria-label="Breadcrumb">
+      <RouterLink to="/activity">Activity</RouterLink>
       <span aria-hidden="true">/</span>
-      <span>Ejecución {{ id }}</span>
+      <span>Run {{ id }}</span>
     </nav>
 
     <p v-if="notFound" class="empty panel">
-      Esta ejecución no existe o se borró con su repositorio. <RouterLink to="/activity">Ver la actividad</RouterLink>
+      This run does not exist or was deleted with its repository. <RouterLink to="/activity">View activity</RouterLink>
     </p>
     <p v-else-if="error && !run" class="notice danger">{{ error }}</p>
 
@@ -77,38 +77,38 @@ function baseOf(path: string) {
 
       <section v-if="run.files_optimized" class="summary">
         <p class="saved">
-          {{ formatBytes(saved) }} menos en {{ run.files_optimized }}
-          {{ run.files_optimized === 1 ? 'imagen' : 'imágenes' }}
+          {{ formatBytes(saved) }} saved across {{ run.files_optimized }}
+          {{ run.files_optimized === 1 ? 'image' : 'images' }}
         </p>
         <SizeBar :before="run.bytes_before" :after="run.bytes_after" size="lg" />
         <p class="small muted">
-          {{ formatBytes(run.bytes_before) }} antes, {{ formatBytes(run.bytes_after) }} después. Mismos píxeles: cada
-          archivo se decodificó y comparó antes de aceptarlo.
+          {{ formatBytes(run.bytes_before) }} before, {{ formatBytes(run.bytes_after) }} after. Same pixels: every
+          file was decoded and compared before it was accepted.
         </p>
       </section>
 
       <dl class="facts panel">
-        <dt>Imágenes revisadas</dt>
+        <dt>Images scanned</dt>
         <dd>{{ run.files_scanned }}</dd>
-        <dt>Commit de la rama principal</dt>
+        <dt>Default branch commit</dt>
         <dd class="mono">{{ shortSha(run.head_sha) }}</dd>
-        <dt>Commit de git-opt</dt>
+        <dt>git-opt commit</dt>
         <dd class="mono">{{ shortSha(run.commit_sha) }}</dd>
-        <dt>Duración</dt>
-        <dd>{{ run.status === 'running' ? 'en curso' : formatDuration(run.started_at, run.finished_at) }}</dd>
+        <dt>Duration</dt>
+        <dd>{{ run.status === 'running' ? 'running' : formatDuration(run.started_at, run.finished_at) }}</dd>
       </dl>
 
       <section v-if="files.length" class="section">
-        <h2>Archivos</h2>
+        <h2>Files</h2>
         <div class="table-wrap">
           <table class="table">
             <thead>
               <tr>
-                <th>Archivo</th>
-                <th>Optimizador</th>
-                <th class="num">Antes</th>
-                <th class="num">Después</th>
-                <th>Ahorro</th>
+                <th>File</th>
+                <th>Optimizer</th>
+                <th class="num">Before</th>
+                <th class="num">After</th>
+                <th>Savings</th>
               </tr>
             </thead>
             <tbody>
