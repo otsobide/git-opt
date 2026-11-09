@@ -12,12 +12,12 @@ Guide for agents (and people) working in this repository. Overview: `README.md`.
 cargo build                         # from the root (workspace)
 cargo test                          # backend unit tests
 cargo clippy --all-targets          # lint
-scripts/e2e.sh                      # full flow against a fake GitHub; needs magick and jpegtran
+scripts/e2e.sh                      # full flow against a fake GitHub, every format; needs magick
 scripts/demo.sh                     # UI with sample repos on :18484, fake GitHub, no github.com
 scripts/demo.sh --screenshots docs/screenshots   # regenerate the README/docs screenshots (dark)
 cd frontend && npm ci && npm run build   # type-check (vue-tsc) + build into frontend/dist
 cd frontend && npm run dev          # Vite :5173, proxies /api -> 127.0.0.1:8484
-docker compose up -d --build        # single image (API + UI + git/jpegtran/gifsicle)
+docker compose up -d --build        # single image (API + UI + git/gifsicle)
 ```
 
 Before calling something done: `cargo test` and `cargo clippy` with no warnings; if you touched `pipeline.rs`, `git.rs`, `github.rs` or `api.rs`, also run `scripts/e2e.sh`; if you touched `frontend/`, run `npm run build`.
@@ -38,12 +38,13 @@ Keep the documentation true: behavior → `docs/how-it-works.md`, settings/env v
 | `pipeline.rs` | per-repo work: fetch → candidates → optimize → commit → push → PR; adding repos and syncing sources |
 | `git.rs` | the **only** place that runs `git`. Holds the `BOT_MARKER` constant |
 | `github.rs` | REST client and token resolution (UI → env → `gh auth token`) |
-| `optimizers/` | `Optimizer` trait, registry, oxipng/jpegtran/gifsicle, pixel verification |
+| `optimizers/` | `Optimizer` trait, registry, PNG/APNG (oxipng), JPEG (mozjpeg FFI), GIF (gifsicle), WebP (libwebp FFI), ICO/CUR, SVG; verification |
 | `report.rs` | commit message and PR body (both carry `BOT_MARKER`) |
 
 ## Invariants that must not break
 
-- **Truly lossless.** Every optimizer implements `verify` and must prove equivalence (today: decode both and compare pixels/frames). If it cannot be verified, the file is not touched. Never enable lossy options (`--lossy`, `optimize_alpha`, `scale_16`, `-copy none` for JPEG…).
+- **Truly lossless.** Every optimizer implements `verify` and must prove equivalence (decoded pixels/frames; plus metadata segments for JPEG, chunks for WebP, XML tree and resvg rendering for SVG). If it cannot be verified, the file is not touched. Never enable lossy options (`--lossy`, `optimize_alpha`, `scale_16`, dropping JPEG markers, WebP without `exact`, SVG number rounding…), never convert between formats, never touch lossy WebP.
+- **FFI safety.** mozjpeg and libwebp are called through `unsafe` code. Keep every C object owned by a guard that frees it on all paths, keep libjpeg structs boxed (libjpeg stores pointers to them), and turn C errors into `Err`, never `exit()`/abort. Any change there needs a test with damaged input.
 - **The marker** `Git-Opt: lossless-optimization` goes in every bot commit and PR. "Already optimized" detection relies on the blobs those commits introduce (`Git::blobs_from_bot_commits`); changing the text breaks recognition of existing history.
 - **The developer's identity.** Commits use the system `git config` (or what is set in Settings, or the GitHub account); API calls and pushes use their token. There is no "bot" account.
 - **Secrets.** The token never goes into arguments or URLs: it reaches git through `GIT_CONFIG_COUNT/KEY/VALUE` (`GitAuth`). Do not log it or return it from the API (`PUT /api/settings/github-token` is write-only).

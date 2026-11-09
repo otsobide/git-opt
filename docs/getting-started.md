@@ -5,7 +5,7 @@ This guide takes you from nothing to your first pull request. It takes about fiv
 ## What you need
 
 - A GitHub account and a token for it. The easiest is the GitHub CLI: `gh auth login`, then `gh auth token` prints a token with the right scopes. A classic personal access token with `repo` and `workflow` works too (see [configuration.md](configuration.md#github-token)).
-- Either **Docker** (recommended), or **Rust ≥ 1.88**, **Node ≥ 20**, **git** and, for JPEG/GIF support, `jpegtran` and `gifsicle`.
+- Either **Docker** (recommended), or **Rust ≥ 1.88** with a C compiler, **Node ≥ 20**, **git** and, for GIF support, `gifsicle` (every other format is built in).
 
 git-opt acts as you: commits carry your git identity and PRs are opened by your account. Nothing is ever pushed to a repository's default branch; the bot only pushes its own branch (`git-opt/optimize-images`) and opens a PR.
 
@@ -18,7 +18,7 @@ export GIT_OPT_ADMIN_TOKEN=$(openssl rand -hex 24)   # keep it: the UI will ask 
 docker compose up -d --build
 ```
 
-The image bundles everything (API, UI, `git`, `jpegtran`, `gifsicle`) and stores its data in the `git-opt-data` volume. Open <http://localhost:8484> and paste the admin token.
+The image bundles everything (API, UI, every optimizer, `git`, `gifsicle`) and stores its data in the `git-opt-data` volume. Open <http://localhost:8484> and paste the admin token.
 
 Optional, in `docker-compose.yml`:
 

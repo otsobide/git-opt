@@ -68,7 +68,7 @@ Each job runs inside its own spawned task, so a panic is caught and the key is a
 | `resolve_identity` | Commit author: settings → git config → GitHub account. |
 | `next_check_at` | `now + interval + random(0..=jitter)`. |
 
-CPU-heavy work (oxipng, image decoding for verification) runs in `spawn_blocking`; external tools run as async child processes with timeouts.
+CPU-heavy work (oxipng, mozjpeg, libwebp, SVG cleanup, decoding and rendering for verification) runs in `spawn_blocking`; the one external tool (gifsicle) runs as an async child process with a timeout.
 
 ### `git.rs`
 
@@ -95,7 +95,18 @@ pub trait Optimizer: Send + Sync {
 }
 ```
 
-`optimizers::process` is the only entry point used by the pipeline: optimize → size thresholds → verify → `Outcome::{Optimized, Optimal, Failed}`. `verify.rs` holds the pixel comparison (`image` crate) for still images and GIF animations. External tools are driven through temp files by `external.rs`.
+`optimizers::process` is the only entry point used by the pipeline: optimize → size thresholds → verify → `Outcome::{Optimized, Optimal, Failed}`.
+
+| Module | Optimizer | Notes |
+|---|---|---|
+| `png.rs` | `oxipng` | PNG and APNG through the oxipng library; optional Zopfli |
+| `jpeg.rs` | `mozjpeg` | FFI to mozjpeg (`mozjpeg-sys`): coefficient transcode as in `jpegtran.c`. libjpeg errors and warnings unwind (`C-unwind`, built with `-fexceptions`) into a Rust `Err`; a guard frees every libjpeg object |
+| `gif.rs` | `gifsicle` | external tool through temp files (`external.rs`) |
+| `webp.rs` | `webp` | FFI to libwebp (`libwebp-sys`): decode, re-encode VP8L, splice it back into the original RIFF container |
+| `ico.rs` | `ico` | parses the icon directory, runs oxipng (no pixel-format reductions) on embedded PNGs |
+| `svg.rs` | `svg` | token-level rewrite with `xmlparser`; verified with `roxmltree` (tree) and `resvg` (pixels) |
+
+`verify.rs` holds the shared pixel comparisons (`image` crate) for still images, GIF and APNG frames.
 
 ## Data model
 
@@ -145,4 +156,4 @@ Three stages:
 
 1. `node:24-slim` builds the UI (`npm ci && npm run build`).
 2. `rust:1.98-slim-trixie` builds the release binary (with cargo registry/target cache mounts).
-3. `debian:trixie-slim` runtime with `git`, `libjpeg-turbo-progs` (jpegtran), `gifsicle`, `ca-certificates` and `tini`; runs as the unprivileged user `gitopt` (uid 1000) with data in `/data`.
+3. `debian:trixie-slim` runtime with `git`, `gifsicle`, `ca-certificates` and `tini` (every other optimizer is compiled into the binary); runs as the unprivileged user `gitopt` (uid 1000) with data in `/data`.

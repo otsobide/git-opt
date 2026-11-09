@@ -9,12 +9,13 @@ Everything needed to work on git-opt: setup, the dev loop, tests, the fake GitHu
 | Rust ≥ 1.88 (edition 2024) | backend |
 | Node ≥ 22 and npm | frontend; the screenshot script uses Node's built-in `WebSocket` |
 | git | runtime dependency and tests |
-| `jpegtran` (libjpeg-turbo), `gifsicle` | JPEG/GIF optimizers; their tests are skipped when missing |
+| a C compiler (gcc/clang) | builds the bundled SQLite, libdeflate, mozjpeg and libwebp (no nasm or libclang needed) |
+| `gifsicle` | GIF optimizer, the only external tool; its test is skipped when missing |
 | python3, curl, ImageMagick (`magick`) | `scripts/e2e.sh` and `scripts/demo.sh` build fixtures and compare pixels |
 | Chromium or Chrome | `scripts/screenshots.mjs` |
 | Docker | building the image |
 
-The C parts (bundled SQLite, libdeflate for oxipng) are compiled by `cargo` with the system C compiler.
+The C parts (bundled SQLite, libdeflate for oxipng, mozjpeg, libwebp) are compiled by `cargo` with the system C compiler. Dependencies are built with `opt-level = 3` even in dev builds (see the root `Cargo.toml`), otherwise image tests are very slow.
 
 ## Dev loop
 
@@ -31,10 +32,10 @@ To work on the UI without a GitHub account (or without touching real repositorie
 
 | Command | What it covers | Time |
 |---|---|---|
-| `cargo test` | unit tests: optimizers (size, pixel equality, rejection of a single changed pixel, APNG, GIF frames), report formatting, job queue ordering and deduplication, ignore patterns, scheduling jitter, repo reference parsing, pagination, git helpers | seconds |
+| `cargo test` | unit tests: every optimizer (it shrinks, the result is equivalent, `verify` rejects a minimal change, already optimal files are left alone, damaged/lossy/unusual inputs are refused): PNG, Zopfli, APNG frames, JPEG pixels and metadata, GIF frames, WebP pixels and chunks, ICO entries, SVG from Inkscape and Illustrator, report formatting, job queue ordering and deduplication, ignore patterns, scheduling jitter, repo reference parsing, pagination, git helpers | seconds |
 | `cargo clippy --all-targets` | lints; keep it at zero warnings | seconds |
 | `cd frontend && npm run build` | `vue-tsc` type-check + production build | seconds |
-| `scripts/e2e.sh` | the real binary against a fake GitHub and local bare repositories: add repo → PR → pixels identical (ImageMagick `compare -metric AE`) → merge → nothing left → third-party repo in fork mode with manual approval → publish | ~30 s |
+| `scripts/e2e.sh` | the real binary against a fake GitHub and local bare repositories: add repo → PR with PNG, APNG, JPEG, WebP, ICO and SVG fixtures → pixels identical (ImageMagick `compare -metric AE`; SVG rendered by librsvg, independently of resvg) → merge → nothing left → third-party repo in fork mode with manual approval → publish | ~30 s |
 
 The e2e script builds the debug binary, picks ports `18484`/`18999` (override with `PORT`/`API_PORT`) and deletes everything it created on exit.
 
@@ -108,11 +109,11 @@ docker build -t git-opt .
 docker run --rm -p 127.0.0.1:8484:8484 -e GITHUB_TOKEN git-opt
 ```
 
-Stages: UI build (`node:24-slim`) → release binary (`rust:1.98-slim-trixie`, with cache mounts) → runtime (`debian:trixie-slim` + git, jpegtran, gifsicle, tini, user `gitopt`). To run the tests with every external tool available:
+Stages: UI build (`node:24-slim`) → release binary (`rust:1.98-slim-trixie`, with cache mounts) → runtime (`debian:trixie-slim` + git, gifsicle, tini, user `gitopt`). To run the tests with gifsicle available:
 
 ```bash
 docker run --rm -v "$PWD":/src:ro -w /tmp rust:1.98-slim-trixie sh -c \
-  "apt-get update -qq && apt-get install -y -qq gifsicle libjpeg-turbo-progs >/dev/null \
+  "apt-get update -qq && apt-get install -y -qq gifsicle >/dev/null \
    && cp -r /src/Cargo.toml /src/Cargo.lock /src/backend . && cargo test"
 ```
 
