@@ -84,7 +84,7 @@ const jobsText = computed(() =>
 <style scoped>
 .shell {
   display: grid;
-  grid-template-columns: var(--sidebar) 1fr;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
   min-height: 100vh;
 }
 .sidebar {
@@ -140,7 +140,7 @@ nav {
 
 @media (max-width: 760px) {
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
     position: static;
