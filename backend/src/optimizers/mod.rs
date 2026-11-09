@@ -241,6 +241,39 @@ mod tests {
         }
     }
 
+    fn animated_gif(shift: u32) -> Vec<u8> {
+        use image::{Delay, Frame, codecs::gif::GifEncoder};
+        let frames = (0..4).map(|i| {
+            let img = RgbaImage::from_fn(64, 64, |x, y| {
+                if (x + y + i * 8 + shift) % 32 < 16 { Rgba([200, 30, 30, 255]) } else { Rgba([30, 30, 200, 255]) }
+            });
+            Frame::from_parts(img, 0, 0, Delay::from_numer_denom_ms(100, 1))
+        });
+        let mut out = Vec::new();
+        GifEncoder::new(&mut out).encode_frames(frames).unwrap();
+        out
+    }
+
+    #[test]
+    fn gif_verifier_compares_every_frame() {
+        verify::same_gif_frames(&animated_gif(0), &animated_gif(0)).unwrap();
+        assert!(verify::same_gif_frames(&animated_gif(0), &animated_gif(1)).is_err());
+    }
+
+    #[tokio::test]
+    async fn gif_is_lossless_when_gifsicle_is_installed() {
+        if gif::Gifsicle.probe().await.is_err() {
+            eprintln!("gifsicle not installed, skipping");
+            return;
+        }
+        let input = Arc::new(animated_gif(0));
+        let settings = Settings { min_savings_bytes: 1, min_savings_percent: 0.0, ..Settings::default() };
+        match process(&gif::Gifsicle, input.clone(), &settings).await {
+            Outcome::Optimized(out) => verify::same_gif_frames(&input, &out).unwrap(),
+            other => panic!("expected optimization, got {other:?}"),
+        }
+    }
+
     #[test]
     fn picks_optimizer_by_extension() {
         let active: Vec<Arc<dyn Optimizer>> = vec![Arc::new(png::Oxipng), Arc::new(jpeg::Jpegtran)];
