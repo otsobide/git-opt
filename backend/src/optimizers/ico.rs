@@ -6,17 +6,13 @@
 //! older readers). The directory entries keep every field except the size and
 //! offset of the data they point to.
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail, ensure};
 use async_trait::async_trait;
-use image::ImageFormat;
-use oxipng::{Deflater, Options, StripChunks, ZopfliOptions};
 
-use super::{Optimizer, verify};
+use super::{Optimizer, png};
 use crate::settings::Settings;
-
-const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 
 pub struct Ico;
 
@@ -35,7 +31,7 @@ impl Optimizer for Ico {
         &["ico", "cur"]
     }
     fn profile(&self, s: &Settings) -> String {
-        format!("ico:oxipng10:l{}:zopfli{}:keep-ihdr", s.png_level, u8::from(s.png_zopfli))
+        format!("ico:{}", png::keep_format_profile(s))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
@@ -43,15 +39,14 @@ impl Optimizer for Ico {
     }
 
     async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
-        let opts = png_options(s);
+        let opts = png::keep_format_options(s);
         tokio::task::spawn_blocking(move || {
             let icon = parse(&input)?;
             ensure!(icon.entries.iter().any(|e| e.is_png()), "no embedded PNG images");
             let mut payloads = Vec::with_capacity(icon.entries.len());
             for entry in &icon.entries {
                 let payload = if entry.is_png() {
-                    let smaller = oxipng::optimize_from_memory(entry.data, &opts)?;
-                    if smaller.len() < entry.data.len() { smaller } else { entry.data.to_vec() }
+                    png::recompress_keep_format(entry.data, &opts)?
                 } else {
                     entry.data.to_vec()
                 };
@@ -70,12 +65,7 @@ impl Optimizer for Ico {
             for (i, (x, y)) in a.entries.iter().zip(&b.entries).enumerate() {
                 ensure!(x.fields == y.fields, "image {i}: directory entry changed");
                 if x.is_png() {
-                    ensure!(y.is_png(), "image {i}: no longer a PNG");
-                    ensure!(
-                        verify::png_chunk(x.data, b"IHDR") == verify::png_chunk(y.data, b"IHDR"),
-                        "image {i}: pixel format changed"
-                    );
-                    verify::same_pixels(x.data, y.data, ImageFormat::Png)?;
+                    png::verify_keep_format(x.data, y.data).map_err(|e| e.context(format!("image {i}")))?;
                 } else {
                     ensure!(x.data == y.data, "image {i}: BMP data changed");
                 }
@@ -86,24 +76,6 @@ impl Optimizer for Ico {
     }
 }
 
-/// oxipng settings that recompress without changing the PNG's pixel format.
-fn png_options(s: &Settings) -> Options {
-    let mut opts = Options::from_preset(s.png_level);
-    opts.color_type_reduction = false;
-    opts.bit_depth_reduction = false;
-    opts.palette_reduction = false;
-    opts.grayscale_reduction = false;
-    opts.interlace = None;
-    opts.optimize_alpha = false;
-    opts.scale_16 = false;
-    opts.strip = StripChunks::None;
-    if s.png_zopfli {
-        opts.deflater = Deflater::Zopfli(ZopfliOptions::default());
-    }
-    opts.timeout = Some(Duration::from_secs(120));
-    opts
-}
-
 pub(super) struct Entry<'a> {
     /// Width, height, colors, reserved, planes/hotspot and bit count/hotspot.
     fields: [u8; 8],
@@ -112,7 +84,7 @@ pub(super) struct Entry<'a> {
 
 impl Entry<'_> {
     fn is_png(&self) -> bool {
-        self.data.starts_with(PNG_SIGNATURE)
+        self.data.starts_with(png::SIGNATURE)
     }
 }
 

@@ -63,3 +63,45 @@ impl Optimizer for Oxipng {
 pub(super) fn is_apng(data: &[u8]) -> bool {
     verify::png_chunk(data, b"acTL").is_some()
 }
+
+pub(super) const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+
+/// oxipng settings for PNGs embedded in containers (icons): recompress
+/// without changing the pixel format (IHDR), because some readers only
+/// accept the format they wrote.
+pub(super) fn keep_format_options(s: &Settings) -> Options {
+    let mut opts = Options::from_preset(s.png_level);
+    opts.color_type_reduction = false;
+    opts.bit_depth_reduction = false;
+    opts.palette_reduction = false;
+    opts.grayscale_reduction = false;
+    opts.interlace = None;
+    opts.optimize_alpha = false;
+    opts.scale_16 = false;
+    opts.strip = StripChunks::None;
+    if s.png_zopfli {
+        opts.deflater = Deflater::Zopfli(ZopfliOptions::default());
+    }
+    opts.timeout = Some(Duration::from_secs(120));
+    opts
+}
+
+pub(super) fn keep_format_profile(s: &Settings) -> String {
+    format!("oxipng10:l{}:zopfli{}:keep-ihdr", s.png_level, u8::from(s.png_zopfli))
+}
+
+/// Recompresses an embedded PNG; returns the input unchanged if not smaller.
+pub(super) fn recompress_keep_format(data: &[u8], opts: &Options) -> Result<Vec<u8>> {
+    let smaller = oxipng::optimize_from_memory(data, opts)?;
+    Ok(if smaller.len() < data.len() { smaller } else { data.to_vec() })
+}
+
+/// The embedded PNG kept its pixel format and its pixels.
+pub(super) fn verify_keep_format(original: &[u8], candidate: &[u8]) -> Result<()> {
+    anyhow::ensure!(candidate.starts_with(SIGNATURE), "no longer a PNG");
+    anyhow::ensure!(
+        verify::png_chunk(original, b"IHDR") == verify::png_chunk(candidate, b"IHDR"),
+        "pixel format changed"
+    );
+    verify::same_pixels(original, candidate, ImageFormat::Png)
+}
