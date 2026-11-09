@@ -94,7 +94,7 @@ impl Optimizer for Svg {
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
-        Ok("built-in (verified with resvg)".into())
+        Ok("built-in, verified with resvg".into())
     }
 
     async fn optimize(&self, input: Arc<Vec<u8>>, _: &Settings) -> Result<Vec<u8>> {

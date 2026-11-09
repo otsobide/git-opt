@@ -18,7 +18,7 @@ impl Optimizer for Oxipng {
         "oxipng"
     }
     fn label(&self) -> &'static str {
-        "PNG (oxipng)"
+        "PNG and APNG (oxipng)"
     }
     fn category(&self) -> &'static str {
         "image"

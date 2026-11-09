@@ -39,7 +39,7 @@ impl Optimizer for Ico {
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
-        Ok("built-in (oxipng on embedded PNGs)".into())
+        Ok("built-in, oxipng on embedded PNGs".into())
     }
 
     async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
