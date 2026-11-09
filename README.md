@@ -13,6 +13,7 @@ You point it at repositories (yours, your organization's, or third-party project
 - **Contributes to other projects.** If you can't push to a repository, it forks it into your account and opens the PR from there. You can review every result before the PR goes out.
 - **Scales to whole accounts.** Import all repositories of a user, an organization, or everything you can access, and new ones are picked up automatically.
 - **One container.** Rust backend, Vue UI with light and dark themes, SQLite, system `git`: one Docker image, or one binary.
+- **Swappable parts.** Hexagonal architecture: the core only talks to ports, so the database, git, GitHub and every image library are adapters that can be replaced (or, for codecs, compiled out) without touching the rest.
 
 ## How it works
 
@@ -116,10 +117,21 @@ The token is taken from the UI's Settings, then `GITHUB_TOKEN`/`GH_TOKEN`, then 
 ## Development
 
 ```bash
-cargo test && cargo clippy --all-targets   # backend
+cargo test --workspace                     # domain, use cases, adapters, codecs
+cargo clippy --workspace --all-targets     # zero warnings
 (cd frontend && npm run build)             # type-check + build the UI
 scripts/e2e.sh                             # full flow against a fake GitHub, never touches github.com
 scripts/demo.sh                            # explore the UI with sample repositories
 ```
 
-Adding a format means implementing one trait (`Optimizer`) whose `verify` proves equivalence; see [docs/development.md](docs/development.md#adding-a-new-optimizer). Contributor and agent conventions are in [AGENTS.md](AGENTS.md).
+The code is a Cargo workspace in hexagonal architecture:
+
+```
+crates/domain        value objects, entities, policies and ports (traits); no I/O
+crates/application   use cases, job queue, scheduler, delivery and author strategies
+crates/codecs        one FormatStrategy per format, each behind a Cargo feature
+crates/adapters/     sqlite · git-cli · github · http
+crates/server        composition root: wires adapters into the use cases
+```
+
+Adding a format means implementing one strategy (`FormatStrategy`) whose `verify` proves equivalence; replacing SQLite, git or GitHub means implementing their port. See [docs/architecture.md](docs/architecture.md) and [docs/development.md](docs/development.md#adding-a-new-optimizer). Contributor and agent conventions are in [AGENTS.md](AGENTS.md).
