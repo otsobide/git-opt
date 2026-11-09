@@ -3,6 +3,8 @@
 //! implements. Nothing here performs I/O or knows about a framework.
 
 pub mod error;
+pub mod model;
+pub mod report;
 pub mod values;
 
 pub use error::InvalidValue;
