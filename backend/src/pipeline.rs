@@ -316,7 +316,7 @@ async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> 
     Ok((outcome, files))
 }
 
-/// Clones on first use, fetches afterwards; re-clones a broken checkout.
+/// Clones on first use and fetches afterwards; re-clones only a broken checkout.
 async fn sync_clone(app: &App, repo: &Repo, git: &Git, url: &str, branch: &str) -> Result<()> {
     if git.is_repo() {
         progress(app, repo, "Descargando cambios");
@@ -327,7 +327,9 @@ async fn sync_clone(app: &App, repo: &Repo, git: &Git, url: &str, branch: &str) 
         .await;
         match fetched {
             Ok(()) => return Ok(()),
-            Err(e) => tracing::warn!(repo = %repo.full_name(), error = %format!("{e:#}"), "fetch failed, re-cloning"),
+            // A healthy clone means the problem is upstream (network, auth): keep it.
+            Err(e) if git.rev_parse("HEAD").await.is_ok() => return Err(e),
+            Err(e) => tracing::warn!(repo = %repo.full_name(), error = %format!("{e:#}"), "broken clone, re-cloning"),
         }
     }
     progress(app, repo, "Clonando repositorio");
