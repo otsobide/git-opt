@@ -10,7 +10,7 @@ withDefaults(
     disabled?: boolean
     small?: boolean
   }>(),
-  { confirmLabel: '¿Seguro? Confirmar', disabled: false, small: false },
+  { confirmLabel: 'Sure? Confirm', disabled: false, small: false },
 )
 const emit = defineEmits<{ confirm: [] }>()
 

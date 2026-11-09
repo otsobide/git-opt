@@ -6,18 +6,18 @@ const props = defineProps<{ repo: RepoView }>()
 
 const view = computed(() => {
   const r = props.repo
-  if (r.running) return { cls: 'ok live', text: 'Procesando' }
-  if (r.queued) return { cls: 'hollow', text: 'En cola' }
-  if (!r.enabled) return { cls: 'hollow', text: 'En pausa' }
+  if (r.running) return { cls: 'ok live', text: 'Processing' }
+  if (r.queued) return { cls: 'hollow', text: 'Queued' }
+  if (!r.enabled) return { cls: 'hollow', text: 'Paused' }
   switch (r.status) {
     case 'ok':
-      return { cls: 'ok', text: 'Al día' }
+      return { cls: 'ok', text: 'Up to date' }
     case 'awaiting_approval':
-      return { cls: 'warn', text: 'Esperando aprobación' }
+      return { cls: 'warn', text: 'Awaiting approval' }
     case 'error':
       return { cls: 'danger', text: 'Error' }
     default:
-      return { cls: 'hollow', text: 'Pendiente' }
+      return { cls: 'hollow', text: 'Pending' }
   }
 })
 </script>

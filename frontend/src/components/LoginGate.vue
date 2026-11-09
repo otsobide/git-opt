@@ -21,7 +21,7 @@ async function submit() {
   } catch {
     setAdminToken(null)
     authRequired.value = true
-    error.value = 'El token no es válido. Revisa GIT_OPT_ADMIN_TOKEN en el servidor.'
+    error.value = 'Invalid token. Check GIT_OPT_ADMIN_TOKEN on the server.'
   } finally {
     busy.value = false
   }
@@ -32,9 +32,9 @@ async function submit() {
   <div class="gate">
     <form class="card" @submit.prevent="submit">
       <BrandMark />
-      <h1>Acceso de administración</h1>
+      <h1>Admin access</h1>
       <p class="muted small">
-        Este servidor exige el token definido en <code>GIT_OPT_ADMIN_TOKEN</code>.
+        This server requires the token set in <code>GIT_OPT_ADMIN_TOKEN</code>.
       </p>
       <div class="field">
         <label for="admin-token">Token</label>
@@ -48,7 +48,7 @@ async function submit() {
         />
       </div>
       <p v-if="error" class="error-text">{{ error }}</p>
-      <button class="btn btn-primary" type="submit" :disabled="busy || !token.trim()">Entrar</button>
+      <button class="btn btn-primary" type="submit" :disabled="busy || !token.trim()">Sign in</button>
     </form>
   </div>
 </template>

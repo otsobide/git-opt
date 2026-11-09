@@ -5,12 +5,12 @@ import type { RunStatus } from '@/types'
 const props = defineProps<{ status: RunStatus }>()
 
 const MAP: Record<RunStatus, { cls: string; text: string }> = {
-  running: { cls: 'ok live', text: 'En curso' },
-  no_changes: { cls: 'hollow', text: 'Sin cambios' },
-  up_to_date: { cls: '', text: 'Nada que optimizar' },
-  awaiting_approval: { cls: 'warn', text: 'Esperando aprobación' },
-  pr_opened: { cls: 'ok', text: 'PR abierta' },
-  pr_updated: { cls: 'ok', text: 'PR actualizada' },
+  running: { cls: 'ok live', text: 'Running' },
+  no_changes: { cls: 'hollow', text: 'No changes' },
+  up_to_date: { cls: '', text: 'Nothing to optimize' },
+  awaiting_approval: { cls: 'warn', text: 'Awaiting approval' },
+  pr_opened: { cls: 'ok', text: 'PR opened' },
+  pr_updated: { cls: 'ok', text: 'PR updated' },
   error: { cls: 'danger', text: 'Error' },
 }
 

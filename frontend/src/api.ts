@@ -61,12 +61,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
-    throw new ApiError(0, 'No se puede conectar con el servidor de git-opt.')
+    throw new ApiError(0, 'Cannot connect to the git-opt server.')
   }
 
   if (res.status === 401) {
     authRequired.value = true
-    throw new ApiError(401, 'Hace falta el token de administración.')
+    throw new ApiError(401, 'The admin token is required.')
   }
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`

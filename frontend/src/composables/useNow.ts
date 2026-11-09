@@ -1,6 +1,6 @@
 import { readonly, ref } from 'vue'
 
-// One shared clock for relative timestamps ("en 7 min").
+// One shared clock for relative timestamps ("in 7 minutes").
 const now = ref(Date.now())
 let started = false
 

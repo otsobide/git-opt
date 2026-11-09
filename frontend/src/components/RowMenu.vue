@@ -67,7 +67,7 @@ onBeforeUnmount(() => listen(false))
       class="btn btn-quiet btn-sm"
       aria-haspopup="menu"
       :aria-expanded="open"
-      :aria-label="label || 'Más acciones'"
+      :aria-label="label || 'More actions'"
       @click="open = !open"
     >
       ⋯

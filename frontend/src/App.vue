@@ -26,11 +26,11 @@ usePolling(async () => {
 }, 5000)
 
 const nav = [
-  { to: '/', label: 'Panel' },
-  { to: '/repos', label: 'Repositorios' },
-  { to: '/sources', label: 'Fuentes' },
-  { to: '/activity', label: 'Actividad' },
-  { to: '/settings', label: 'Ajustes' },
+  { to: '/', label: 'Dashboard' },
+  { to: '/repos', label: 'Repositories' },
+  { to: '/sources', label: 'Sources' },
+  { to: '/activity', label: 'Activity' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 const route = useRoute()
@@ -42,7 +42,7 @@ const running = computed(() => status.value?.jobs.running.length ?? 0)
 const queued = computed(() => status.value?.jobs.queued.length ?? 0)
 const github = computed(() => status.value?.github)
 const jobsText = computed(() =>
-  [running.value && `${running.value} en curso`, queued.value && `${queued.value} en cola`].filter(Boolean).join(', '),
+  [running.value && `${running.value} running`, queued.value && `${queued.value} queued`].filter(Boolean).join(', '),
 )
 </script>
 
@@ -50,8 +50,8 @@ const jobsText = computed(() =>
   <LoginGate v-if="ready && authRequired" @ok="refreshStatus" />
   <div v-else-if="ready" class="shell">
     <aside class="sidebar">
-      <RouterLink to="/" class="home" aria-label="git-opt, ir al panel"><BrandMark /></RouterLink>
-      <nav aria-label="Secciones">
+      <RouterLink to="/" class="home" aria-label="git-opt, go to dashboard"><BrandMark /></RouterLink>
+      <nav aria-label="Sections">
         <RouterLink
           v-for="item in nav"
           :key="item.to"
@@ -64,13 +64,13 @@ const jobsText = computed(() =>
         </RouterLink>
       </nav>
       <div class="whoami small">
-        <p v-if="statusError" class="error-text">Sin conexión con el servidor</p>
+        <p v-if="statusError" class="error-text">Cannot reach the server</p>
         <template v-else-if="status">
           <p v-if="running" class="tag ok live">{{ jobsText }}</p>
           <p v-else-if="queued" class="tag hollow">{{ jobsText }}</p>
-          <p v-else class="tag hollow">En espera</p>
-          <p v-if="github?.ok && github.login" class="muted">PRs como <strong>@{{ github.login }}</strong></p>
-          <p v-else class="tag warn">Sin acceso a GitHub</p>
+          <p v-else class="tag hollow">Idle</p>
+          <p v-if="github?.ok && github.login" class="muted">PRs as <strong>@{{ github.login }}</strong></p>
+          <p v-else class="tag warn">No GitHub access</p>
         </template>
       </div>
     </aside>

@@ -11,11 +11,11 @@ const props = defineProps<{
 const view = computed(() => {
   switch (props.state) {
     case 'merged':
-      return { cls: 'merged', text: 'fusionada' }
+      return { cls: 'merged', text: 'merged' }
     case 'closed':
-      return { cls: 'danger', text: 'cerrada' }
+      return { cls: 'danger', text: 'closed' }
     case 'open':
-      return { cls: 'ok', text: 'abierta' }
+      return { cls: 'ok', text: 'open' }
     default:
       return null
   }

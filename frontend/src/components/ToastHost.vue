@@ -8,7 +8,7 @@ const { toasts, dismiss } = useToast()
   <div class="toasts" aria-live="polite">
     <div v-for="t in toasts" :key="t.id" class="toast" :class="t.kind" role="status">
       <span>{{ t.text }}</span>
-      <button type="button" class="close" aria-label="Cerrar aviso" @click="dismiss(t.id)">×</button>
+      <button type="button" class="close" aria-label="Dismiss" @click="dismiss(t.id)">×</button>
     </div>
   </div>
 </template>

@@ -18,7 +18,7 @@ const pct = computed(() => savedPercent(props.before, props.after))
 const keptWidth = computed(() => `${Math.max(0, Math.min(100, 100 - pct.value))}%`)
 const label = computed(
   () =>
-    `${formatBytes(props.before)} → ${formatBytes(props.after)}, ${formatPercent(pct.value)} menos`,
+    `${formatBytes(props.before)} → ${formatBytes(props.after)}, ${formatPercent(pct.value)} smaller`,
 )
 </script>
 
