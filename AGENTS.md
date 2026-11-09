@@ -38,7 +38,7 @@ Keep the documentation true: behavior → `docs/how-it-works.md`, settings/env v
 | `pipeline.rs` | per-repo work: fetch → candidates → optimize → commit → push → PR; adding repos and syncing sources |
 | `git.rs` | the **only** place that runs `git`. Holds the `BOT_MARKER` constant |
 | `github.rs` | REST client and token resolution (UI → env → `gh auth token`) |
-| `optimizers/` | `Optimizer` trait, registry, PNG/APNG (oxipng), JPEG (mozjpeg FFI), GIF (gifsicle), WebP (libwebp FFI), ICO/CUR, SVG; verification |
+| `optimizers/` | `Optimizer` trait, registry, PNG/APNG (oxipng), JPEG (mozjpeg FFI), GIF (gifsicle), WebP (libwebp FFI), ICO/CUR, ICNS, SVG (+ embedded images), SVGZ; verification |
 | `report.rs` | commit message and PR body (both carry `BOT_MARKER`) |
 
 ## Invariants that must not break

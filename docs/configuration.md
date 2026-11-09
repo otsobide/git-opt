@@ -48,7 +48,7 @@ The resolved token is cached for 5 minutes. The Dashboard shows which source is 
 | Optimization → PNG compression effort | `png_level` | `3` | 0–6 | oxipng preset. Higher is smaller and slower. |
 | Optimization → Use Zopfli for PNG | `png_zopfli` | off | | Zopfli instead of libdeflate for PNG and ICO: a few % smaller, many times slower. |
 | Optimization → Strip PNG metadata that doesn't affect rendering | `strip_metadata` | off | | Removes PNG chunks that do not affect rendering (text, time…). Color-related chunks are kept. JPEG metadata is never removed. |
-| Optimization → Formats | `optimizers` | all on | | Per-optimizer switch: `oxipng` (PNG/APNG), `mozjpeg` (JPEG), `gifsicle` (GIF), `webp`, `ico` (ICO/CUR), `svg`. Only `gifsicle` is an external tool; if it is not installed GIF is reported as unavailable and skipped. |
+| Optimization → Formats | `optimizers` | all on | | Per-optimizer switch: `oxipng` (PNG/APNG), `mozjpeg` (JPEG), `gifsicle` (GIF), `webp`, `ico` (ICO/CUR), `icns`, `svg`, `svgz`. SVG and SVGZ also use the raster optimizers for embedded images, so turning one of those off also stops it inside SVGs. Only `gifsicle` is an external tool; if it is not installed GIF is reported as unavailable and skipped. |
 | Ignored files | `ignore_globs` | empty | | Patterns ignored in every repository (see below). |
 | Commits and PRs → Working branch | `branch_name` | `git-opt/optimize-images` | | Branch the bot pushes to. Changing it while a PR is open leaves the old PR alone and opens a new one. |
 | Commits and PRs → Commit and PR title | `commit_title` | `[git-opt] Optimize images` | | Subject of the commit and title of the PR. |

@@ -104,9 +104,11 @@ pub trait Optimizer: Send + Sync {
 | `gif.rs` | `gifsicle` | external tool through temp files (`external.rs`) |
 | `webp.rs` | `webp` | FFI to libwebp (`libwebp-sys`): decode, re-encode VP8L, splice it back into the original RIFF container |
 | `ico.rs` | `ico` | parses the icon directory, runs oxipng (no pixel-format reductions) on embedded PNGs |
-| `svg.rs` | `svg` | token-level rewrite with `xmlparser`; verified with `roxmltree` (tree) and `resvg` (pixels) |
+| `icns.rs` | `icns` | parses the ICNS element list, runs oxipng (no pixel-format reductions) on PNG elements, rebuilds the `TOC ` |
+| `svg.rs` | `svg` | token-level rewrite with `xmlparser`; embedded `data:` images sent through the raster optimizers; verified with `roxmltree` (tree), each embedded image's verifier and `resvg` (pixels) |
+| `svgz.rs` | `svgz` | gzip parse with `flate2`, the SVG optimizer on the content, Zopfli recompression behind the original header |
 
-`verify.rs` holds the shared pixel comparisons (`image` crate) for still images, GIF and APNG frames.
+`png.rs` also holds the keep-the-pixel-format recompression shared by ICO and ICNS. `verify.rs` holds the shared pixel comparisons (`image` crate) for still images, GIF and APNG frames.
 
 ## Data model
 

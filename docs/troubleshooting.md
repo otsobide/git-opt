@@ -45,7 +45,8 @@ Run a forced check with `RUST_LOG=git_opt=debug` and look for its path. Usual re
 - it matches an ignored pattern (global or per repository);
 - it is in Git LFS, is a symlink, or exceeds the size limit;
 - the format cannot be improved without loss: lossy or animated WebP;
-- the file is unusual or damaged: a JPEG that makes libjpeg emit warnings, an icon with gaps or trailing bytes, an SVG that is not UTF-8 or that resvg cannot read;
+- the file is unusual or damaged: a JPEG that makes libjpeg emit warnings, an ICO/ICNS with gaps, trailing bytes or an inconsistent table of contents, an SVG that is not UTF-8 or that resvg cannot read, an SVGZ with several gzip members, trailing data or a bad checksum;
+- the image is embedded in an SVG through CSS (`url(data:…)`) rather than an attribute such as `href`: those are not touched;
 - it was in a PR that was closed without merging (use *Forget rejected files*);
 - verification failed or the file could not be decoded; the reason is cached (`blob_cache.detail`) and the file will not be retried with the same settings.
 

@@ -6,7 +6,7 @@ You point it at repositories (yours, your organization's, or third-party project
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-- **Lossless, verified.** PNG and APNG, JPEG, GIF, WebP, ICO/CUR and SVG. Every result is proven equivalent before it is kept: decoded and compared pixel by pixel (and, for SVG, XML tree and rendering compared); anything that differs is thrown away.
+- **Lossless, verified.** PNG and APNG, JPEG, GIF, WebP, ICO/CUR, ICNS, SVG (including the images embedded in it) and SVGZ. Every result is proven equivalent before it is kept: decoded and compared pixel by pixel (and, for SVG, XML tree and rendering compared); anything that differs is thrown away.
 - **Runs on its own.** Each repository is checked every 20 minutes plus a random delay of up to 20 minutes, in the background, a few at a time.
 - **Remembers what it did, in git.** Its commits carry a marker, so it recognizes already-optimized images from the commit history, whether its PR was merged, rebased or squashed, and even after a reinstall.
 - **Acts as you.** Commits use your `git config` identity; pushes and PRs use your GitHub token. No bot account, no GitHub App.
@@ -59,7 +59,9 @@ The full walkthrough, including scheduling, caching, identity and the security m
 | GIF | `gifsicle -O3` (never `--lossy`) | frame encoding | every composited frame and its delay | every composited frame and delay |
 | WebP | libwebp (built in), `-lossless -z 9 -exact`, lossless files only | the lossless bitstream | pixels (including under transparency); ICC, EXIF, XMP and every other chunk | decoded pixels (independent decoder) + chunks byte for byte |
 | ICO, CUR | oxipng on the embedded PNG images | PNG compression | pixel format of each image, BMP images, the icon directory | per-image pixels, IHDR and directory fields |
-| SVG | built-in cleanup | comments (license notices kept), editor metadata (Inkscape, Illustrator, Sketch, Figma…), whitespace between tags | paths, numbers, ids, classes, styles, every attribute value, element order, text, DOCTYPE | XML tree (independent parser) + pixels rendered by resvg |
+| ICNS | oxipng on the embedded PNG images | PNG compression; the `TOC ` sizes | pixel format of each image, every other element (RLE, masks, JPEG 2000, `info`…) | per-element pixels and IHDR, other elements byte for byte, TOC consistent |
+| SVG | built-in cleanup | comments (license notices kept), editor metadata (Inkscape, Illustrator, Sketch, Figma…), whitespace between tags; embedded PNG/JPEG/WebP/GIF images (`data:` URIs) optimized by their own optimizer | paths, numbers, ids, classes, styles, every other attribute value, element order, text, DOCTYPE | XML tree (independent parser) + each embedded image by its own verifier + pixels rendered by resvg |
+| SVGZ | the SVG cleanup above, then Zopfli | the SVG inside, the deflate stream | the gzip header (file name, time, flags) | gzip header byte for byte + the SVG proof on the decompressed content |
 
 A result is kept only if it is proven equivalent **and** saves at least 1% and 256 bytes (configurable).
 

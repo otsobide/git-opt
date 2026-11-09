@@ -32,10 +32,10 @@ To work on the UI without a GitHub account (or without touching real repositorie
 
 | Command | What it covers | Time |
 |---|---|---|
-| `cargo test` | unit tests: every optimizer (it shrinks, the result is equivalent, `verify` rejects a minimal change, already optimal files are left alone, damaged/lossy/unusual inputs are refused): PNG, Zopfli, APNG frames, JPEG pixels and metadata, GIF frames, WebP pixels and chunks, ICO entries, SVG from Inkscape and Illustrator, report formatting, job queue ordering and deduplication, ignore patterns, scheduling jitter, repo reference parsing, pagination, git helpers | seconds |
+| `cargo test` | unit tests: every optimizer (it shrinks, the result is equivalent, `verify` rejects a minimal change, already optimal files are left alone, damaged/lossy/unusual inputs are refused): PNG, Zopfli, APNG frames, JPEG pixels and metadata, GIF frames, WebP pixels and chunks, ICO entries, ICNS elements and TOC, SVG from Inkscape and Illustrator, images embedded in SVG, SVGZ headers and multi-member/corrupt gzip, report formatting, job queue ordering and deduplication, ignore patterns, scheduling jitter, repo reference parsing, pagination, git helpers | seconds |
 | `cargo clippy --all-targets` | lints; keep it at zero warnings | seconds |
 | `cd frontend && npm run build` | `vue-tsc` type-check + production build | seconds |
-| `scripts/e2e.sh` | the real binary against a fake GitHub and local bare repositories: add repo → PR with PNG, APNG, JPEG, WebP, ICO and SVG fixtures → pixels identical (ImageMagick `compare -metric AE`; SVG rendered by librsvg, independently of resvg) → merge → nothing left → third-party repo in fork mode with manual approval → publish | ~30 s |
+| `scripts/e2e.sh` | the real binary against a fake GitHub and local bare repositories: add repo → PR with PNG, APNG, JPEG, WebP, ICO, ICNS, SVG, SVG with an embedded PNG and SVGZ fixtures → pixels identical (ImageMagick `compare -metric AE`; SVG/SVGZ rendered by librsvg, independently of resvg; the ICNS PNG element extracted and compared, other elements byte for byte) → merge → nothing left → third-party repo in fork mode with manual approval → publish | ~30 s |
 
 The e2e script builds the debug binary, picks ports `18484`/`18999` (override with `PORT`/`API_PORT`) and deletes everything it created on exit.
 
