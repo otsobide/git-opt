@@ -88,7 +88,7 @@ cat >"$WORK/github.json" <<JSON
     "acme/docs":           { "push": true,  "clone": "$WORK/bare/acme/docs.git" },
     "acme/mobile-app":     { "push": true,  "clone": "$WORK/bare/acme/mobile-app.git" },
     "acme/design-system":  { "push": true,  "clone": "$WORK/bare/acme/design-system.git" },
-    "acme/old-site":       { "push": true,  "clone": "$WORK/bare/acme/old-site.git" },
+    "acme/old-site":       { "push": true,  "clone": "$WORK/bare/acme/old-site.git", "deleted": true },
     "jdev/blog":           { "push": true,  "clone": "$WORK/bare/jdev/blog.git" },
     "someone/awesome-list":{ "push": false, "clone": "$WORK/bare/someone/awesome-list.git",
                              "fork_clone": "$WORK/bare/fork/awesome-list.git" } } }
@@ -110,7 +110,8 @@ for _ in $(seq 40); do curl -fs "$API/health" >/dev/null 2>&1 && break; sleep 0.
 
 # ------------------------------------------------------------------- seed
 log "seed"
-curl -fsS "$API/settings" | json "json.dumps({**d['settings'], 'commit_author_name': 'Jane Developer', 'commit_author_email': 'jane@example.com', 'ignore_globs': '**/vendor/**\n*.min.png'})" >"$WORK/settings.json"
+GIF=$(command -v gifsicle >/dev/null && echo True || echo False)   # hide the "missing tool" warning
+curl -fsS "$API/settings" | json "json.dumps({**d['settings'], 'commit_author_name': 'Jane Developer', 'commit_author_email': 'jane@example.com', 'ignore_globs': '**/vendor/**\n*.min.png', 'optimizers': {'gifsicle': $GIF}})" >"$WORK/settings.json"
 curl -fsS -X PUT -H 'content-type: application/json' --data @"$WORK/settings.json" "$API/settings" >/dev/null
 post /repos '{"repo":"acme/mobile-app","auto_pr":false}'       # review before opening the PR
 post /repos '{"repo":"someone/awesome-list"}'                   # third party: fork mode
