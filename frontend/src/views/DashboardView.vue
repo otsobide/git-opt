@@ -134,7 +134,7 @@ const tokenSource: Record<string, string> = {
       <div :class="{ attention: totals.awaiting_approval > 0 }">
         <dt>Esperan tu aprobación</dt>
         <dd>
-          <RouterLink v-if="totals.awaiting_approval" :to="{ path: '/repos', query: { filtro: 'aprobacion' } }">
+          <RouterLink v-if="totals.awaiting_approval" :to="{ path: '/repos', query: { filter: 'awaiting' } }">
             {{ formatNumber(totals.awaiting_approval) }}
           </RouterLink>
           <template v-else>0</template>
@@ -143,7 +143,7 @@ const tokenSource: Record<string, string> = {
       <div :class="{ failing: totals.errors > 0 }">
         <dt>Con errores</dt>
         <dd>
-          <RouterLink v-if="totals.errors" :to="{ path: '/repos', query: { filtro: 'errores' } }">
+          <RouterLink v-if="totals.errors" :to="{ path: '/repos', query: { filter: 'errors' } }">
             {{ formatNumber(totals.errors) }}
           </RouterLink>
           <template v-else>0</template>

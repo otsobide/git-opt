@@ -53,21 +53,21 @@ async function add() {
 
 // ----------------------------------------------------------------- filters
 
-type Filter = 'todos' | 'pr' | 'aprobacion' | 'errores' | 'pausa'
+type Filter = 'all' | 'pr' | 'awaiting' | 'errors' | 'paused'
 const FILTERS: { id: Filter; label: string; test: (r: RepoView) => boolean }[] = [
-  { id: 'todos', label: 'Todos', test: () => true },
+  { id: 'all', label: 'Todos', test: () => true },
   { id: 'pr', label: 'Con PR abierta', test: (r) => r.pr_state === 'open' },
-  { id: 'aprobacion', label: 'Esperando aprobación', test: (r) => r.status === 'awaiting_approval' },
-  { id: 'errores', label: 'Con errores', test: (r) => r.status === 'error' },
-  { id: 'pausa', label: 'En pausa', test: (r) => !r.enabled },
+  { id: 'awaiting', label: 'Esperando aprobación', test: (r) => r.status === 'awaiting_approval' },
+  { id: 'errors', label: 'Con errores', test: (r) => r.status === 'error' },
+  { id: 'paused', label: 'En pausa', test: (r) => !r.enabled },
 ]
 
 const filter = computed<Filter>({
   get: () => {
-    const q = route.query.filtro
-    return FILTERS.some((f) => f.id === q) ? (q as Filter) : 'todos'
+    const q = route.query.filter
+    return FILTERS.some((f) => f.id === q) ? (q as Filter) : 'all'
   },
-  set: (v) => router.replace({ query: { ...route.query, filtro: v === 'todos' ? undefined : v } }),
+  set: (v) => router.replace({ query: { ...route.query, filter: v === 'all' ? undefined : v } }),
 })
 const search = ref('')
 
