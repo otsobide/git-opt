@@ -1,4 +1,7 @@
 mod config;
+mod db;
+mod models;
+mod settings;
 
 use anyhow::Result;
 use tracing_subscriber::EnvFilter;
@@ -13,5 +16,7 @@ async fn main() -> Result<()> {
 
     let config = config::Config::from_env()?;
     tracing::info!(?config.bind, data_dir = %config.data_dir.display(), "starting git-opt");
+    let db = db::Db::open(&config.db_path()).await?;
+    let _ = db.settings().await?;
     Ok(())
 }
