@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guide for agents (and people) working in this repository. Overview and usage: `README.md`.
+Guide for agents (and people) working in this repository. Overview: `README.md`. Full documentation: `docs/` (start at `docs/README.md`).
 
 ## What this is
 
@@ -13,12 +13,16 @@ cargo build                         # from the root (workspace)
 cargo test                          # backend unit tests
 cargo clippy --all-targets          # lint
 scripts/e2e.sh                      # full flow against a fake GitHub; needs magick and jpegtran
+scripts/demo.sh                     # UI with sample repos on :18484, fake GitHub, no github.com
+scripts/demo.sh --screenshots docs/screenshots   # regenerate the README/docs screenshots (dark)
 cd frontend && npm ci && npm run build   # type-check (vue-tsc) + build into frontend/dist
 cd frontend && npm run dev          # Vite :5173, proxies /api -> 127.0.0.1:8484
 docker compose up -d --build        # single image (API + UI + git/jpegtran/gifsicle)
 ```
 
 Before calling something done: `cargo test` and `cargo clippy` with no warnings; if you touched `pipeline.rs`, `git.rs`, `github.rs` or `api.rs`, also run `scripts/e2e.sh`; if you touched `frontend/`, run `npm run build`.
+
+Keep the documentation true: behavior → `docs/how-it-works.md`, settings/env vars → `docs/configuration.md`, endpoints → `docs/api.md`, UI labels or screens → `docs/usage.md` (and regenerate screenshots), code layout → `docs/architecture.md`, tooling → `docs/development.md`.
 
 ## Backend map
 
@@ -64,6 +68,8 @@ SQLite through `sqlx` with `sqlx::migrate!`. To change the schema add `backend/m
 
 Vue 3 + Vite + TypeScript + vue-router, hand-written CSS without UI frameworks. The API contract lives in the types in `frontend/src/types.ts`; if you change a model in `backend/src/models.rs` or a response in `api.rs`, update both sides.
 
+Colors only come from the tokens in `src/styles/tokens.css`, each written once as `light-dark(light, dark)`; the System/Light/Dark switcher (`useTheme`) sets `data-theme` on `<html>`. Never hard-code a color in a component.
+
 ## Language
 
 Everything in the repository is in **English**: code, comments, logs, UI texts, API messages, docs, commit messages, and the commits/PRs the bot generates.
@@ -74,4 +80,4 @@ Small, **atomic** commits: one logical change each, and every commit must build 
 
 ## Testing without GitHub
 
-`scripts/mock-github.py` imitates the endpoints we use (repos, forks, pulls, `/user`) with local *bare* repositories as `clone_url` (`file://…`; without `https` no auth is injected). `scripts/e2e.sh` uses it to test: add repo → PR → identical pixels (ImageMagick) → merge → nothing pending → third-party repo in fork mode with manual approval. Never test against real repositories without explicit permission: forks and PRs are visible to other people.
+`scripts/mock-github.py` imitates the endpoints we use (repos, forks, pulls, `/user`) with local *bare* repositories as `clone_url` (`file://…`; without `https` no auth is injected). `scripts/e2e.sh` uses it to test: add repo → PR → identical pixels (ImageMagick) → merge → nothing pending → third-party repo in fork mode with manual approval. `scripts/demo.sh` reuses the same fake to show every repository state in the UI. Never test against real repositories without explicit permission: forks and PRs are visible to other people.
