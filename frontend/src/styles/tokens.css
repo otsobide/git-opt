@@ -2,32 +2,38 @@
  * Design tokens.
  * The one expressive device is the alpha checkerboard: it marks bytes that a
  * lossless optimization removed. Everything else stays quiet.
+ *
+ * Every color is `light-dark(light, dark)`: the theme is picked by
+ * `color-scheme`, so it is defined once and can be forced from the UI.
  */
 :root {
-  --bg: #eef1f4;
-  --surface: #ffffff;
-  --surface-2: #f6f8fa;
-  --ink: #1a2230;
-  --muted: #5b6676;
-  --faint: #8a95a5;
-  --line: #d5dbe3;
-  --line-strong: #b9c2ce;
+  /* System theme by default; useTheme() sets data-theme to force one. */
+  color-scheme: light dark;
 
-  --accent: #0f7b6c;
-  --accent-hover: #0b6a5d;
-  --accent-ink: #ffffff;
-  --accent-soft: #dcefeb;
+  --bg: light-dark(#eef1f4, #141a22);
+  --surface: light-dark(#ffffff, #1b222c);
+  --surface-2: light-dark(#f6f8fa, #212a35);
+  --ink: light-dark(#1a2230, #e3e8ef);
+  --muted: light-dark(#5b6676, #9aa6b6);
+  --faint: light-dark(#8a95a5, #6f7c8d);
+  --line: light-dark(#d5dbe3, #2e3946);
+  --line-strong: light-dark(#b9c2ce, #3d4a59);
 
-  --warn: #92600f;
-  --warn-soft: #f6ebd6;
-  --danger: #b4382c;
-  --danger-soft: #f7e1de;
-  --merged: #6b4fbb;
-  --merged-soft: #ebe5f8;
+  --accent: light-dark(#0f7b6c, #3fb8a5);
+  --accent-hover: light-dark(#0b6a5d, #5cc8b6);
+  --accent-ink: light-dark(#ffffff, #072520);
+  --accent-soft: light-dark(#dcefeb, #173a35);
 
-  --bar-fill: #9aa6b6;
-  --checker-a: #ffffff;
-  --checker-b: #cdd4dd;
+  --warn: light-dark(#92600f, #e0a84a);
+  --warn-soft: light-dark(#f6ebd6, #3a2e17);
+  --danger: light-dark(#b4382c, #f07a6b);
+  --danger-soft: light-dark(#f7e1de, #3d1f1c);
+  --merged: light-dark(#6b4fbb, #a98beb);
+  --merged-soft: light-dark(#ebe5f8, #2c2440);
+
+  --bar-fill: light-dark(#9aa6b6, #566375);
+  --checker-a: light-dark(#ffffff, #2a3441);
+  --checker-b: light-dark(#cdd4dd, #1e2631);
 
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
   --font-display: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
@@ -49,31 +55,9 @@
   --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141a22;
-    --surface: #1b222c;
-    --surface-2: #212a35;
-    --ink: #e3e8ef;
-    --muted: #9aa6b6;
-    --faint: #6f7c8d;
-    --line: #2e3946;
-    --line-strong: #3d4a59;
-
-    --accent: #3fb8a5;
-    --accent-hover: #5cc8b6;
-    --accent-ink: #072520;
-    --accent-soft: #173a35;
-
-    --warn: #e0a84a;
-    --warn-soft: #3a2e17;
-    --danger: #f07a6b;
-    --danger-soft: #3d1f1c;
-    --merged: #a98beb;
-    --merged-soft: #2c2440;
-
-    --bar-fill: #566375;
-    --checker-a: #2a3441;
-    --checker-b: #1e2631;
-  }
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
