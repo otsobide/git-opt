@@ -1,9 +1,9 @@
-// Presentation helpers (es-ES).
+// Presentation helpers (en-US).
 
-const number = new Intl.NumberFormat('es-ES')
-const decimal = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })
-const relative = new Intl.RelativeTimeFormat('es-ES', { numeric: 'auto' })
-const dateTime = new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+const number = new Intl.NumberFormat('en-US')
+const decimal = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
+const relative = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' })
+const dateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
@@ -30,7 +30,7 @@ export function savedPercent(before: number, after: number): number {
 }
 
 export function formatPercent(p: number): string {
-  return `${decimal.format(p)} %`
+  return `${decimal.format(p)}%`
 }
 
 export function formatDate(iso: string | null | undefined): string {
@@ -39,14 +39,14 @@ export function formatDate(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? '—' : dateTime.format(d)
 }
 
-/** "hace 5 min", "en 12 min"… relative to `now` (ms). */
+/** "5 minutes ago", "in 12 minutes"… relative to `now` (ms). */
 export function formatRelative(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return '—'
   const t = new Date(iso).getTime()
   if (Number.isNaN(t)) return '—'
   const diff = (t - now) / 1000
   const abs = Math.abs(diff)
-  if (abs < 45) return diff >= 0 ? 'en unos segundos' : 'hace un momento'
+  if (abs < 45) return diff >= 0 ? 'in a few seconds' : 'just now'
   if (abs < 3600) return relative.format(Math.round(diff / 60), 'minute')
   if (abs < 86400) return relative.format(Math.round(diff / 3600), 'hour')
   return relative.format(Math.round(diff / 86400), 'day')
