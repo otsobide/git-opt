@@ -5,6 +5,7 @@ mod git;
 mod github;
 mod jobs;
 mod optimizers;
+mod pipeline;
 mod report;
 mod models;
 mod settings;
