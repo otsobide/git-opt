@@ -38,6 +38,43 @@ mkdir -p "$WORK/work/img" && cd "$WORK/work" && git init -q -b main .
 magick -size 300x200 gradient:red-blue -define png:compression-level=0 img/big.png
 magick -size 64x64 xc:white -fill black -draw "circle 32,32 32,10" -define png:compression-level=0 img/icon.png
 magick -size 400x300 plasma:fractal -seed 7 -quality 92 -define jpeg:optimize-coding=false img/photo.jpg
+magick -size 160x120 plasma:fractal -seed 3 -define webp:lossless=true -define webp:method=0 img/photo.webp
+magick -delay 10 -size 64x64 plasma:fractal -seed 1 plasma:fractal -seed 2 plasma:fractal -seed 3 apng:img/anim.png
+magick -size 128x128 radial-gradient:'#f59e0b'-'#1d4ed8' -define png:compression-level=0 "$WORK/fav.png"
+python3 -I - "$WORK/fav.png" img/favicon.ico <<'PY'   # ICO with one PNG entry (ImageMagick writes BMP)
+import struct, sys
+png = open(sys.argv[1], "rb").read()
+open(sys.argv[2], "wb").write(struct.pack("<HHHBBBBHHII", 0, 1, 1, 128, 128, 0, 0, 1, 32, len(png), 22) + png)
+PY
+cat >img/vector.svg <<'SVG'
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   width="64"
+   height="64"
+   viewBox="0 0 64 64"
+   inkscape:version="1.3"
+   sodipodi:docname="vector.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     inkscape:zoom="8" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer">
+    <rect
+       style="fill:#d97706"
+       width="40"
+       height="30"
+       x="12"
+       y="17" />
+    <circle cx="32" cy="32" r="10" fill="#1d4ed8"/>
+  </g>
+</svg>
+SVG
 git add -A && commit -m "Initial"
 git clone -q --bare . ../demo.git && git clone -q --bare . ../third.git && git init -q --bare ../fork.git
 
@@ -54,19 +91,23 @@ GIT_OPT_BIND=127.0.0.1:$PORT GIT_OPT_DATA_DIR="$WORK/data" GIT_OPT_GITHUB_API=ht
 PIDS+=($!)
 for _ in $(seq 40); do curl -fs "$API/health" >/dev/null 2>&1 && break; sleep 0.25; done
 
-step "add octo/demo -> PR with 3 optimized images"
+step "add octo/demo -> PR with every format optimized"
 curl -fs -X POST -H 'content-type: application/json' -d '{"repo":"octo/demo"}' "$API/repos" >/dev/null
 wait_idle 1
 [[ $(last_run 1 status) == pr_opened ]] || fail "expected pr_opened, got $(last_run 1 status): $(last_run 1 message)"
-[[ $(last_run 1 files_optimized) == 3 ]] || fail "expected 3 files"
+optimized=$(curl -fs "$API/runs/$(last_run 1 id)" | json "' '.join(sorted(f['path'] for f in d['files']))")
+expected="img/anim.png img/big.png img/favicon.ico img/icon.png img/photo.jpg img/photo.webp img/vector.svg"
+[[ $optimized == "$expected" ]] || fail "optimized files: $optimized"
 
-step "pixels are identical (ImageMagick AE metric)"
+step "pixels are identical (ImageMagick AE metric; SVG rendered by librsvg)"
 cd "$WORK" && git clone -q demo.git check && cd check
-for f in img/big.png img/icon.png img/photo.jpg; do
-  git show "main:$f" >"$WORK/orig"
-  ae=$(git show "origin/git-opt/optimize-images:$f" | magick compare -metric AE "$WORK/orig" - null: 2>&1 || true)
+for f in img/big.png img/icon.png img/photo.jpg img/photo.webp img/anim.png img/favicon.ico img/vector.svg; do
+  ext=${f##*.}
+  git show "main:$f" >"$WORK/orig.$ext"
+  git show "origin/git-opt/optimize-images:$f" >"$WORK/new.$ext"
+  ae=$(magick compare -metric AE "$WORK/orig.$ext" "$WORK/new.$ext" null: 2>&1 || true)
   [[ $ae == 0* ]] || fail "$f differs: AE=$ae"
-  echo "$f AE=$ae"
+  printf "%-17s %7s -> %7s bytes  AE=%s\n" "$f" "$(stat -c %s "$WORK/orig.$ext")" "$(stat -c %s "$WORK/new.$ext")" "$ae"
 done
 git log -1 --format=%B origin/git-opt/optimize-images | grep -q "^Git-Opt: lossless-optimization$" || fail "marker missing"
 
