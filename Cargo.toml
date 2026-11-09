@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["backend"]
+members = ["backend", "crates/domain"]
 
 [profile.release]
 lto = "thin"

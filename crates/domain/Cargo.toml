@@ -1,0 +1,13 @@
+[package]
+name = "git-opt-domain"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "git-opt core: value objects, entities, ports and policies. No I/O."
+
+[dependencies]
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+globset = "0.4.21"
+thiserror = "2.0.21"
