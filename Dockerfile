@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM debian:trixie-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates git libjpeg-turbo-progs gifsicle tini \
+        ca-certificates git gifsicle tini \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 gitopt \
     && mkdir -p /data && chown gitopt:gitopt /data

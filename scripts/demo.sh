@@ -6,7 +6,7 @@
 #   scripts/demo.sh                     # serve the demo on http://127.0.0.1:18484
 #   scripts/demo.sh --screenshots DIR   # capture the UI in dark mode into DIR and exit
 #
-# Needs: cargo, git, python3, curl, ImageMagick (`magick`) and jpegtran; npm to
+# Needs: cargo, git, python3, curl and ImageMagick (`magick`); npm to
 # build the UI if frontend/dist is missing; node + Chromium for --screenshots.
 set -euo pipefail
 
@@ -72,7 +72,7 @@ blog() { mkdir -p posts && echo "Hello" >posts/hello.md; }
 awesome() { mkdir -p media && png media/banner.png 1280x320 gradient:'#db2777'-'#f97316'; }
 
 log "fixtures"
-for tool in cargo git python3 curl magick jpegtran; do command -v "$tool" >/dev/null || { echo "missing $tool"; exit 1; }; done
+for tool in cargo git python3 curl magick; do command -v "$tool" >/dev/null || { echo "missing $tool"; exit 1; }; done
 new_repo acme/website website
 new_repo acme/docs docs
 new_repo acme/mobile-app mobile

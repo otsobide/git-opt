@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test against a fake GitHub API (scripts/mock-github.py) and local
 # bare repositories. Never talks to github.com.
-# Needs: cargo, git, python3, curl, ImageMagick (`magick`) and jpegtran.
+# Needs: cargo, git, python3, curl and ImageMagick (`magick`).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -13,7 +13,7 @@ PIDS=()
 cleanup() { kill "${PIDS[@]}" 2>/dev/null || true; rm -rf "$WORK"; }
 trap cleanup EXIT
 
-for tool in cargo git python3 curl magick jpegtran; do
+for tool in cargo git python3 curl magick; do
   command -v "$tool" >/dev/null || { echo "missing $tool"; exit 1; }
 done
 
