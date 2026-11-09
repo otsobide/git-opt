@@ -104,7 +104,7 @@ async function save() {
     })
     repo.value = updated
     loadForm(updated)
-    toast.ok('Cambios guardados')
+    toast.ok('Changes saved')
   } catch (e) {
     toast.error(e)
   } finally {
@@ -119,39 +119,39 @@ const check = (force = false) =>
   run(
     force ? 'force' : 'check',
     () => api.checkRepo(props.id, force),
-    force ? 'Revisión completa en cola' : 'Comprobación en cola',
+    force ? 'Forced check queued' : 'Check queued',
   )
-const publish = () => run('publish', () => api.publishRepo(props.id), 'Abriendo la PR')
+const publish = () => run('publish', () => api.publishRepo(props.id), 'Opening the PR')
 const toggle = () =>
   run('toggle', async () => {
     const updated = await api.patchRepo(props.id, { enabled: !repo.value!.enabled })
     form.enabled = updated.enabled
   })
 const resetIgnored = () =>
-  run('reset', () => api.resetIgnored(props.id), 'Los archivos rechazados se volverán a proponer')
+  run('reset', () => api.resetIgnored(props.id), 'Rejected files will be proposed again')
 async function remove() {
   try {
     await api.deleteRepo(props.id)
-    toast.ok(`${repo.value?.owner}/${name.value} eliminado`)
+    toast.ok(`${repo.value?.owner}/${name.value} removed`)
     router.push('/repos')
   } catch (e) {
     toast.error(e)
   }
 }
 
-const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manual', publish: 'Publicación' }
+const TRIGGER: Record<string, string> = { schedule: 'Scheduled', manual: 'Manual', publish: 'Publish' }
 </script>
 
 <template>
   <div class="page">
-    <nav class="crumbs small" aria-label="Ruta">
-      <RouterLink to="/repos">Repositorios</RouterLink>
+    <nav class="crumbs small" aria-label="Breadcrumb">
+      <RouterLink to="/repos">Repositories</RouterLink>
       <span aria-hidden="true">/</span>
       <span>{{ repo ? repo.owner : '…' }}</span>
     </nav>
 
     <p v-if="notFound" class="empty panel">
-      Este repositorio ya no está en la lista. <RouterLink to="/repos">Volver a repositorios</RouterLink>
+      This repository is no longer on the list. <RouterLink to="/repos">Back to repositories</RouterLink>
     </p>
     <p v-else-if="error && !repo" class="notice danger">{{ error }}</p>
 
@@ -162,7 +162,7 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
           <div class="tags">
             <RepoStatusTag :repo="repo" />
             <span v-if="repo.running && repo.phase" class="muted small">{{ repo.phase }}</span>
-            <span v-if="repo.mode === 'fork'" class="chip fork">contribución desde fork</span>
+            <span v-if="repo.mode === 'fork'" class="chip fork">fork contribution</span>
             <span v-if="repo.pr_number" class="small">
               PR <PrLink :number="repo.pr_number" :url="repo.pr_url" :state="repo.pr_state" />
             </span>
@@ -176,99 +176,99 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
             :disabled="busy !== null"
             @click="publish"
           >
-            Abrir PR
+            Open PR
           </button>
           <button type="button" class="btn" :disabled="busy !== null || repo.running || repo.queued" @click="check()">
-            Comprobar ahora
+            Check now
           </button>
           <button
             type="button"
             class="btn"
             :disabled="busy !== null || repo.running || repo.queued"
-            title="Revisa todas las imágenes aunque la rama principal no haya cambiado"
+            title="Review every image even if the default branch has not changed"
             @click="check(true)"
           >
-            Revisar todo
+            Force check
           </button>
           <button type="button" class="btn btn-quiet" :disabled="busy !== null" @click="toggle">
-            {{ repo.enabled ? 'Pausar' : 'Reanudar' }}
+            {{ repo.enabled ? 'Pause' : 'Resume' }}
           </button>
         </div>
       </header>
 
       <div v-if="repo.status === 'awaiting_approval'" class="notice">
-        <strong>Hay una optimización preparada.</strong>
+        <strong>An optimization is ready.</strong>
         <span>
-          El commit <code>{{ shortSha(repo.pending_commit) }}</code> está listo en local. Revisa la última ejecución y
-          pulsa «Abrir PR» para publicarlo.
+          Commit <code>{{ shortSha(repo.pending_commit) }}</code> is ready locally. Review the latest run and
+          press “Open PR” to publish it.
         </span>
       </div>
       <div v-if="repo.status === 'error' && repo.last_error" class="notice danger">
-        <strong>La última comprobación falló.</strong>
+        <strong>The last check failed.</strong>
         <span class="mono small">{{ repo.last_error }}</span>
       </div>
 
       <div class="columns">
         <section class="section">
-          <h2>Resumen</h2>
+          <h2>Summary</h2>
           <dl class="facts panel">
-            <dt>En GitHub</dt>
+            <dt>On GitHub</dt>
             <dd>
               <a v-if="webUrl" :href="webUrl" target="_blank" rel="noopener">{{ repo.owner }}/{{ repo.name }}</a>
             </dd>
-            <dt>Envío</dt>
+            <dt>Delivery</dt>
             <dd>
               <template v-if="repo.mode === 'fork'">
-                Contribución desde
+                Contribution from
                 <a v-if="forkUrl" :href="forkUrl" target="_blank" rel="noopener">{{ repo.fork_full_name }}</a>
-                <span v-else class="muted">un fork (se crea en la primera PR)</span>
+                <span v-else class="muted">a fork (created with the first PR)</span>
               </template>
-              <template v-else>Rama en el propio repositorio</template>
+              <template v-else>Direct (branch in the repository)</template>
             </dd>
-            <dt>Rama principal</dt>
+            <dt>Default branch</dt>
             <dd><span class="chip">{{ repo.default_branch }}</span></dd>
-            <dt>Último commit revisado</dt>
+            <dt>Last commit checked</dt>
             <dd class="mono">{{ shortSha(repo.last_seen_sha) }}</dd>
-            <dt>Última comprobación</dt>
+            <dt>Last check</dt>
             <dd :title="formatDate(repo.last_checked_at)">{{ formatRelative(repo.last_checked_at, now) }}</dd>
-            <dt>Próxima comprobación</dt>
+            <dt>Next check</dt>
             <dd :title="formatDate(repo.next_check_at)">
-              {{ repo.enabled ? formatRelative(repo.next_check_at, now) : 'en pausa' }}
+              {{ repo.enabled ? formatRelative(repo.next_check_at, now) : 'paused' }}
             </dd>
-            <dt>Ahorro en PRs fusionadas</dt>
+            <dt>Saved in merged PRs</dt>
             <dd>{{ formatBytes(repo.bytes_saved) }}</dd>
-            <dt>Añadido</dt>
+            <dt>Added</dt>
             <dd>{{ formatDate(repo.created_at) }}</dd>
           </dl>
         </section>
 
         <section class="section">
-          <h2>Configuración</h2>
+          <h2>Configuration</h2>
           <form class="panel settings" @submit.prevent="save">
             <label class="check">
               <input v-model="form.enabled" type="checkbox" />
-              Vigilar este repositorio
+              Watch this repository
             </label>
             <label class="check">
               <input v-model="form.auto_pr" type="checkbox" />
-              Abrir la PR sin pedir aprobación
+              Open PRs automatically
             </label>
 
             <fieldset class="field">
-              <legend class="field-label">Cómo enviar los cambios</legend>
+              <legend class="field-label">How to send changes</legend>
               <div class="segmented">
-                <label><input v-model="form.mode" type="radio" value="direct" /> Rama en el repositorio</label>
-                <label><input v-model="form.mode" type="radio" value="fork" /> Fork y contribución</label>
+                <label><input v-model="form.mode" type="radio" value="direct" /> Direct</label>
+                <label><input v-model="form.mode" type="radio" value="fork" /> Fork (contribution)</label>
               </div>
             </fieldset>
 
             <fieldset class="field">
-              <legend class="field-label">Frecuencia de comprobación</legend>
+              <legend class="field-label">Check frequency</legend>
               <label class="check">
                 <input v-model="form.useGlobalInterval" type="checkbox" />
-                Usar el intervalo global
+                Use the global interval
                 <span v-if="globals" class="muted">
-                  ({{ minutes(globals.poll_interval_minutes) }} + hasta {{ minutes(globals.poll_jitter_minutes) }} al azar)
+                  ({{ minutes(globals.poll_interval_minutes) }} + up to {{ minutes(globals.poll_jitter_minutes) }} random)
                 </span>
               </label>
               <div v-if="!form.useGlobalInterval" class="inline">
@@ -279,14 +279,14 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
                   type="number"
                   min="1"
                   step="1"
-                  aria-label="Minutos entre comprobaciones"
+                  aria-label="Minutes between checks"
                 />
-                <span class="small muted">minutos, más el margen aleatorio global</span>
+                <span class="small muted">minutes, plus the global random delay</span>
               </div>
             </fieldset>
 
             <div class="field">
-              <label for="ignore">Archivos ignorados</label>
+              <label for="ignore">Ignored files</label>
               <textarea
                 id="ignore"
                 v-model="form.ignore_globs"
@@ -294,15 +294,15 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
                 spellcheck="false"
                 placeholder="docs/screenshots/**&#10;**/*.min.png"
               ></textarea>
-              <span class="hint">Un patrón por línea. Se suman a los patrones globales de Ajustes.</span>
+              <span class="hint">One pattern per line. Added to the global patterns in Settings.</span>
             </div>
 
             <div class="form-actions">
               <button class="btn btn-primary" type="submit" :disabled="!dirty || saving">
-                {{ saving ? 'Guardando…' : 'Guardar cambios' }}
+                {{ saving ? 'Saving…' : 'Save changes' }}
               </button>
               <button v-if="dirty" class="btn btn-quiet" type="button" @click="repo && loadForm(repo)">
-                Descartar
+                Discard
               </button>
             </div>
           </form>
@@ -311,20 +311,20 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
 
       <section class="section">
         <div class="section-head">
-          <h2>Historial</h2>
-          <span v-if="runs.length > 1" class="muted small">últimas {{ runs.length }} ejecuciones</span>
+          <h2>History</h2>
+          <span v-if="runs.length > 1" class="muted small">last {{ runs.length }} runs</span>
         </div>
         <div v-if="runs.length" class="table-wrap">
           <table class="table">
             <thead>
               <tr>
-                <th>Cuándo</th>
-                <th>Origen</th>
-                <th>Resultado</th>
-                <th class="num">Imágenes</th>
-                <th>Ahorro</th>
+                <th>When</th>
+                <th>Trigger</th>
+                <th>Result</th>
+                <th class="num">Images</th>
+                <th>Savings</th>
                 <th>PR</th>
-                <th class="num">Duración</th>
+                <th class="num">Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -350,28 +350,28 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
             </tbody>
           </table>
         </div>
-        <p v-else-if="!loading" class="empty panel">Este repositorio todavía no se ha comprobado.</p>
+        <p v-else-if="!loading" class="empty panel">This repository has not been checked yet.</p>
       </section>
 
       <section class="section danger-zone">
-        <h2>Mantenimiento</h2>
+        <h2>Maintenance</h2>
         <div class="panel maint">
           <div>
-            <p><strong>Volver a proponer archivos rechazados</strong></p>
+            <p><strong>Forget rejected files</strong></p>
             <p class="small muted">
-              Cuando cierras una PR sin fusionarla, git-opt no vuelve a tocar esas imágenes. Esto lo olvida.
+              When you close a PR without merging, git-opt stops touching those images. This makes it forget them.
             </p>
           </div>
-          <button type="button" class="btn" :disabled="busy !== null" @click="resetIgnored">Olvidar rechazos</button>
+          <button type="button" class="btn" :disabled="busy !== null" @click="resetIgnored">Forget rejected files</button>
         </div>
         <div class="panel maint">
           <div>
-            <p><strong>Eliminar de la lista</strong></p>
+            <p><strong>Remove from list</strong></p>
             <p class="small muted">
-              Borra el clon local y el historial de ejecuciones. No toca el repositorio en GitHub ni las PRs abiertas.
+              Deletes the local clone and the run history. Leaves the GitHub repository and any open PRs untouched.
             </p>
           </div>
-          <ConfirmButton label="Eliminar repositorio" confirm-label="¿Seguro? Eliminar" @confirm="remove" />
+          <ConfirmButton label="Remove repository" confirm-label="Sure? Remove" @confirm="remove" />
         </div>
       </section>
     </template>
