@@ -237,7 +237,9 @@ async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> 
     if meta.clone_url != repo.clone_url || branch != repo.default_branch {
         app.db.refresh_repo_meta(repo.id, &meta.clone_url, &branch).await?;
     }
-    refresh_pr_state(app, repo).await?;
+    if let Err(e) = refresh_pr_state(app, repo).await {
+        tracing::warn!(repo = %repo.full_name(), error = %format!("{e:#}"), "could not refresh PR state");
+    }
 
     let git = repo_git(app, &repo.owner, &repo.name, &meta.clone_url).await;
     sync_clone(app, repo, &git, &meta.clone_url, &branch).await?;
