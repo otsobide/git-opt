@@ -1,6 +1,7 @@
 mod config;
 mod db;
 mod git;
+mod optimizers;
 mod models;
 mod settings;
 
