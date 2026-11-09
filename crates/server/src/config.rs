@@ -1,7 +1,7 @@
 //! Process-level configuration read from environment variables.
 //!
 //! Runtime-tunable settings (intervals, thresholds…) live in the database and
-//! are managed from the web UI; see `settings.rs`.
+//! are managed from the web UI (domain `Settings`, stored by the SQLite adapter).
 
 use std::{net::SocketAddr, path::PathBuf};
 

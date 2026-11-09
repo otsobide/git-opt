@@ -1,0 +1,23 @@
+[package]
+name = "git-opt"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Self-hosted lossless image optimization bot for git repositories (composition root)"
+
+[dependencies]
+git-opt-application = { path = "../application" }
+git-opt-codecs = { path = "../codecs" }
+git-opt-domain = { path = "../domain" }
+git-opt-git-cli = { path = "../adapters/git-cli" }
+git-opt-github = { path = "../adapters/github" }
+git-opt-http = { path = "../adapters/http" }
+git-opt-sqlite = { path = "../adapters/sqlite" }
+anyhow = "1.0.104"
+axum = "0.8.9"
+chrono = "0.4.45"
+dirs = "7.0.0"
+fastrand = "2.5.0"
+tokio = { version = "1.54.1", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

@@ -13,7 +13,7 @@ RUN npm run build
 FROM rust:1.98-slim-trixie AS backend
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
-COPY backend/ backend/
+COPY crates/ crates/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked \
