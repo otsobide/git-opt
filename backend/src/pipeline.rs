@@ -228,7 +228,7 @@ pub async fn check(app: &App, repo_id: i64, trigger: RunTrigger, force: bool) ->
 }
 
 async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> Result<(RunOutcome, Vec<NewRunFile>)> {
-    progress(app, repo, "Consultando GitHub");
+    progress(app, repo, "Querying GitHub");
     let meta = app.github.repo(&repo.owner, &repo.name).await?;
     if meta.archived || meta.disabled {
         bail!("repository is archived: disable it or remove it");
@@ -252,7 +252,7 @@ async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> 
         return Ok((outcome, Vec::new()));
     }
 
-    progress(app, repo, "Revisando historial de commits");
+    progress(app, repo, "Scanning commit history");
     let (candidates, scanned) = find_candidates(app, repo, settings, &git, &upstream).await?;
     outcome.files_scanned = scanned as i64;
     if candidates.is_empty() {
@@ -260,7 +260,7 @@ async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> 
         return Ok((outcome, Vec::new()));
     }
 
-    progress(app, repo, "Preparando rama");
+    progress(app, repo, "Preparing branch");
     git.checkout_fresh(&settings.branch_name, &upstream).await?;
     let optimized = optimize_files(app, repo, settings, &git, candidates).await?;
     if optimized.is_empty() {
@@ -268,7 +268,7 @@ async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> 
         return Ok((outcome, Vec::new()));
     }
 
-    progress(app, repo, "Creando commit");
+    progress(app, repo, "Committing");
     let reports: Vec<FileReport> = optimized
         .iter()
         .map(|o| FileReport {
@@ -321,7 +321,7 @@ async fn run_check(app: &App, repo: &Repo, settings: &Settings, force: bool) -> 
 /// Clones on first use and fetches afterwards; re-clones only a broken checkout.
 async fn sync_clone(app: &App, repo: &Repo, git: &Git, url: &str, branch: &str) -> Result<()> {
     if git.is_repo() {
-        progress(app, repo, "Descargando cambios");
+        progress(app, repo, "Fetching");
         let fetched = async {
             git.set_origin(url).await?;
             git.fetch_branch(branch).await
@@ -334,7 +334,7 @@ async fn sync_clone(app: &App, repo: &Repo, git: &Git, url: &str, branch: &str) 
             Err(e) => tracing::warn!(repo = %repo.full_name(), error = %format!("{e:#}"), "broken clone, re-cloning"),
         }
     }
-    progress(app, repo, "Clonando repositorio");
+    progress(app, repo, "Cloning");
     git.clone_from(url, branch).await
 }
 
@@ -401,7 +401,7 @@ async fn optimize_files(
     let total = candidates.len();
     let mut optimized = Vec::new();
     for (i, c) in candidates.into_iter().enumerate() {
-        progress(app, repo, format!("Optimizando {}/{}: {}", i + 1, total, c.entry.path));
+        progress(app, repo, format!("Optimizing {}/{}: {}", i + 1, total, c.entry.path));
         let path = git.dir().join(&c.entry.path);
 
         // Same input bytes as a previous run: reuse that verified output.
@@ -471,12 +471,12 @@ async fn publish_branch(
     let (push_url, head_owner) = match repo.mode {
         RepoMode::Direct => (meta.clone_url.clone(), meta.owner.login.clone()),
         RepoMode::Fork => {
-            progress(app, repo, "Preparando fork");
+            progress(app, repo, "Preparing fork");
             ensure_fork(app, repo).await?
         }
     };
 
-    progress(app, repo, "Subiendo rama");
+    progress(app, repo, "Pushing branch");
     let mut attempt = 0;
     loop {
         match git.push(&push_url, branch).await {
@@ -494,7 +494,7 @@ async fn publish_branch(
         }
     }
 
-    progress(app, repo, "Abriendo pull request");
+    progress(app, repo, "Opening pull request");
     let title = &settings.commit_title;
     let body = report::pr_body(reports);
     let base = meta.branch();
