@@ -326,6 +326,13 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
   .search {
     width: 100%;
   }
+  .filters .segmented {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .filters .segmented label {
+    white-space: nowrap;
+  }
   .table-wrap {
     overflow: visible;
   }
