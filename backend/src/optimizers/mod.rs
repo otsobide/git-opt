@@ -8,6 +8,7 @@
 
 mod external;
 mod gif;
+mod ico;
 mod jpeg;
 mod png;
 mod verify;
@@ -79,6 +80,7 @@ impl Registry {
             Arc::new(jpeg::Mozjpeg),
             Arc::new(gif::Gifsicle),
             Arc::new(webp::Webp),
+            Arc::new(ico::Ico),
         ];
         let registry = Arc::new(Self { available: RwLock::new(Vec::new()), optimizers });
         registry.refresh().await;
@@ -426,6 +428,49 @@ mod tests {
         pixels[0] ^= 1;
         let b = webp::encode_lossless(&pixels, w as i32, h as i32, 3).unwrap();
         assert!(verify::same_pixels(&a, &b, ImageFormat::WebP).is_err());
+    }
+
+    /// An icon with a bloated 32-bit PNG entry and a (fake) BMP entry.
+    fn sample_ico() -> Vec<u8> {
+        let png = bloated_png(&RgbaImage::from_fn(48, 48, |x, y| Rgba([(x * 5) as u8, (y * 5) as u8, 128, 255])));
+        let bmp: Vec<u8> = (0..200u8).collect();
+        let mut out = vec![0, 0, 1, 0, 2, 0];
+        let mut offset = 6 + 32;
+        for (size, data) in [(48u8, &png), (16, &bmp)] {
+            out.extend_from_slice(&[size, size, 0, 0, 1, 0, 32, 0]);
+            out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            out.extend_from_slice(&(offset as u32).to_le_bytes());
+            offset += data.len();
+        }
+        out.extend_from_slice(&png);
+        out.extend_from_slice(&bmp);
+        out
+    }
+
+    #[tokio::test]
+    async fn ico_png_entries_shrink_and_bmp_entries_stay() {
+        let input = Arc::new(sample_ico());
+        match process(&ico::Ico, input.clone(), &Settings::default()).await {
+            Outcome::Optimized(out) => {
+                assert!(out.len() < input.len());
+                assert!(ico::parse(&out).is_ok());
+                assert!(out.ends_with(&(0..200u8).collect::<Vec<_>>()), "BMP entry must be untouched");
+                assert_eq!(icon_count(&out), 2);
+            }
+            other => panic!("expected optimization, got {other:?}"),
+        }
+    }
+
+    fn icon_count(data: &[u8]) -> u16 {
+        u16::from_le_bytes([data[4], data[5]])
+    }
+
+    #[test]
+    fn ico_with_unusual_layout_is_refused() {
+        let mut ico = sample_ico();
+        ico.push(0); // trailing byte
+        assert!(ico::parse(&ico).is_err());
+        assert!(ico::parse(b"\0\0\x01\0").is_err());
     }
 
     #[test]

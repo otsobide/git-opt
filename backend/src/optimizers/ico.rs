@@ -1,0 +1,167 @@
+//! ICO and CUR: recompress the PNG images embedded in the icon directory.
+//!
+//! Only the compression of embedded PNGs changes. Their pixel format (IHDR)
+//! is kept, because some Windows icon loaders only accept 32-bit RGBA PNGs,
+//! and BMP entries are copied untouched (turning them into PNG would break
+//! older readers). The directory entries keep every field except the size and
+//! offset of the data they point to.
+
+use std::{sync::Arc, time::Duration};
+
+use anyhow::{Result, anyhow, bail, ensure};
+use async_trait::async_trait;
+use image::ImageFormat;
+use oxipng::{Deflater, Options, StripChunks, ZopfliOptions};
+
+use super::{Optimizer, verify};
+use crate::settings::Settings;
+
+const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+
+pub struct Ico;
+
+#[async_trait]
+impl Optimizer for Ico {
+    fn id(&self) -> &'static str {
+        "ico"
+    }
+    fn label(&self) -> &'static str {
+        "ICO/CUR (embedded PNGs)"
+    }
+    fn category(&self) -> &'static str {
+        "image"
+    }
+    fn extensions(&self) -> &'static [&'static str] {
+        &["ico", "cur"]
+    }
+    fn profile(&self, s: &Settings) -> String {
+        format!("ico:oxipng10:l{}:zopfli{}:keep-ihdr", s.png_level, u8::from(s.png_zopfli))
+    }
+
+    async fn probe(&self) -> std::result::Result<String, String> {
+        Ok("built-in (oxipng on embedded PNGs)".into())
+    }
+
+    async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
+        let opts = png_options(s);
+        tokio::task::spawn_blocking(move || {
+            let icon = parse(&input)?;
+            ensure!(icon.entries.iter().any(|e| e.is_png()), "no embedded PNG images");
+            let mut payloads = Vec::with_capacity(icon.entries.len());
+            for entry in &icon.entries {
+                let payload = if entry.is_png() {
+                    let smaller = oxipng::optimize_from_memory(entry.data, &opts)?;
+                    if smaller.len() < entry.data.len() { smaller } else { entry.data.to_vec() }
+                } else {
+                    entry.data.to_vec()
+                };
+                payloads.push(payload);
+            }
+            Ok(build(&icon, &payloads))
+        })
+        .await?
+    }
+
+    async fn verify(&self, original: Arc<Vec<u8>>, candidate: Arc<Vec<u8>>) -> Result<()> {
+        tokio::task::spawn_blocking(move || {
+            let (a, b) = (parse(&original)?, parse(&candidate)?);
+            ensure!(a.header == b.header, "icon header changed");
+            ensure!(a.entries.len() == b.entries.len(), "number of images changed");
+            for (i, (x, y)) in a.entries.iter().zip(&b.entries).enumerate() {
+                ensure!(x.fields == y.fields, "image {i}: directory entry changed");
+                if x.is_png() {
+                    ensure!(y.is_png(), "image {i}: no longer a PNG");
+                    ensure!(
+                        verify::png_chunk(x.data, b"IHDR") == verify::png_chunk(y.data, b"IHDR"),
+                        "image {i}: pixel format changed"
+                    );
+                    verify::same_pixels(x.data, y.data, ImageFormat::Png)?;
+                } else {
+                    ensure!(x.data == y.data, "image {i}: BMP data changed");
+                }
+            }
+            Ok(())
+        })
+        .await?
+    }
+}
+
+/// oxipng settings that recompress without changing the PNG's pixel format.
+fn png_options(s: &Settings) -> Options {
+    let mut opts = Options::from_preset(s.png_level);
+    opts.color_type_reduction = false;
+    opts.bit_depth_reduction = false;
+    opts.palette_reduction = false;
+    opts.grayscale_reduction = false;
+    opts.interlace = None;
+    opts.optimize_alpha = false;
+    opts.scale_16 = false;
+    opts.strip = StripChunks::None;
+    if s.png_zopfli {
+        opts.deflater = Deflater::Zopfli(ZopfliOptions::default());
+    }
+    opts.timeout = Some(Duration::from_secs(120));
+    opts
+}
+
+pub(super) struct Entry<'a> {
+    /// Width, height, colors, reserved, planes/hotspot and bit count/hotspot.
+    fields: [u8; 8],
+    data: &'a [u8],
+}
+
+impl Entry<'_> {
+    fn is_png(&self) -> bool {
+        self.data.starts_with(PNG_SIGNATURE)
+    }
+}
+
+pub(super) struct Icon<'a> {
+    header: [u8; 6],
+    entries: Vec<Entry<'a>>,
+}
+
+/// Parses an ICO/CUR whose images are stored back to back, in directory
+/// order, right after the directory: the layout every encoder produces. Any
+/// other layout (gaps, overlaps, trailing bytes) is refused rather than
+/// silently normalized.
+pub(super) fn parse(data: &[u8]) -> Result<Icon<'_>> {
+    ensure!(data.len() >= 6, "not an icon file");
+    let header: [u8; 6] = data[..6].try_into()?;
+    let kind = u16::from_le_bytes([header[2], header[3]]);
+    ensure!(header[..2] == [0, 0] && (kind == 1 || kind == 2), "not an ICO/CUR file");
+    let count = u16::from_le_bytes([header[4], header[5]]) as usize;
+    ensure!(count > 0, "empty icon");
+    let mut expected = 6 + 16 * count;
+    ensure!(data.len() >= expected, "truncated icon directory");
+
+    let mut entries = Vec::with_capacity(count);
+    for i in 0..count {
+        let raw = &data[6 + 16 * i..6 + 16 * (i + 1)];
+        let size = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
+        let offset = u32::from_le_bytes(raw[12..16].try_into()?) as usize;
+        if offset != expected {
+            bail!("unusual icon layout");
+        }
+        let end = offset.checked_add(size).filter(|&e| e <= data.len()).ok_or_else(|| anyhow!("truncated icon image"))?;
+        entries.push(Entry { fields: raw[..8].try_into()?, data: &data[offset..end] });
+        expected = end;
+    }
+    ensure!(expected == data.len(), "unusual icon layout (trailing data)");
+    Ok(Icon { header, entries })
+}
+
+fn build(icon: &Icon<'_>, payloads: &[Vec<u8>]) -> Vec<u8> {
+    let mut out = icon.header.to_vec();
+    let mut offset = 6 + 16 * payloads.len();
+    for (entry, payload) in icon.entries.iter().zip(payloads) {
+        out.extend_from_slice(&entry.fields);
+        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(offset as u32).to_le_bytes());
+        offset += payload.len();
+    }
+    for payload in payloads {
+        out.extend_from_slice(payload);
+    }
+    out
+}

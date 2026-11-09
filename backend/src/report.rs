@@ -74,6 +74,9 @@ pub fn pr_body(files: &[FileReport]) -> String {
     if used("webp") {
         body.push_str("- **WebP**: lossless files only, re-encoded with libwebp at maximum effort (`-lossless -z 9 -exact`); ICC, EXIF and XMP chunks are kept.\n");
     }
+    if used("ico") {
+        body.push_str("- **ICO/CUR**: embedded PNG images recompressed with oxipng, keeping their pixel format; BMP images untouched.\n");
+    }
     if used("gifsicle") {
         body.push_str("- **GIF**: `gifsicle -O3`, without `--lossy`.\n");
     }
