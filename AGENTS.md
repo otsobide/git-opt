@@ -1,79 +1,77 @@
 # AGENTS.md
 
-Guía para agentes (y personas) que trabajen en este repositorio. Visión general y uso: `README.md`.
+Guide for agents (and people) working in this repository. Overview and usage: `README.md`.
 
-## Qué es
+## What this is
 
-`git-opt` es un bot autoalojado tipo ImgBot: vigila repos de GitHub, optimiza imágenes **sin pérdidas** y abre PRs con el token y la identidad git del desarrollador dueño de la máquina. Backend Rust (`backend/`), panel Vue (`frontend/`), una sola imagen Docker.
+`git-opt` is a self-hosted ImgBot-like bot: it watches GitHub repositories, optimizes images **losslessly** and opens PRs with the token and git identity of the developer who owns the machine. Rust backend (`backend/`), Vue UI (`frontend/`), a single Docker image.
 
-## Comandos
+## Commands
 
 ```bash
-cargo build                         # desde la raíz (workspace)
-cargo test                          # tests unitarios del backend
+cargo build                         # from the root (workspace)
+cargo test                          # backend unit tests
 cargo clippy --all-targets          # lint
-scripts/e2e.sh                      # flujo completo con GitHub falso; necesita magick y jpegtran
-cd frontend && npm ci && npm run build   # type-check (vue-tsc) + build a frontend/dist
-cd frontend && npm run dev          # Vite :5173, proxy /api -> 127.0.0.1:8484
-docker compose up -d --build        # imagen única (API + panel + git/jpegtran/gifsicle)
+scripts/e2e.sh                      # full flow against a fake GitHub; needs magick and jpegtran
+cd frontend && npm ci && npm run build   # type-check (vue-tsc) + build into frontend/dist
+cd frontend && npm run dev          # Vite :5173, proxies /api -> 127.0.0.1:8484
+docker compose up -d --build        # single image (API + UI + git/jpegtran/gifsicle)
 ```
 
-Antes de dar algo por terminado: `cargo test` y `cargo clippy` sin warnings; si tocaste `pipeline.rs`, `git.rs`, `github.rs` o `api.rs`, ejecuta también `scripts/e2e.sh`; si tocaste `frontend/`, `npm run build`.
+Before calling something done: `cargo test` and `cargo clippy` with no warnings; if you touched `pipeline.rs`, `git.rs`, `github.rs` or `api.rs`, also run `scripts/e2e.sh`; if you touched `frontend/`, run `npm run build`.
 
-## Mapa del backend
+## Backend map
 
-| Fichero | Responsabilidad |
+| File | Responsibility |
 |---|---|
-| `main.rs` | arranque, servidor axum, panel estático con fallback SPA, apagado con SIGTERM |
-| `config.rs` | variables de entorno (`GIT_OPT_*`); nada que se edite en caliente |
-| `settings.rs` | ajustes editables desde la UI (JSON en la tabla `settings`); `sanitized()` acota valores |
-| `db.rs` + `migrations/` | **todas** las consultas SQL. No escribas SQL fuera de `db.rs` |
-| `api.rs` | rutas `/api/*`; errores como `{ "error": "..." }`; mensajes al usuario en español |
-| `jobs.rs` | cola en memoria: deduplica por repo, nunca dos trabajos del mismo repo a la vez, progreso en vivo |
-| `scheduler.rs` | ticker (15 s) que encola lo vencido y despachador con concurrencia leída en cada vuelta |
-| `pipeline.rs` | el trabajo por repo: fetch → candidatos → optimizar → commit → push → PR; alta de repos y sync de fuentes |
-| `git.rs` | **único** sitio que ejecuta `git`. Constante `BOT_MARKER` |
-| `github.rs` | cliente REST y resolución del token (UI → env → `gh auth token`) |
-| `optimizers/` | trait `Optimizer`, registro, oxipng/jpegtran/gifsicle, verificación por píxeles |
-| `report.rs` | mensaje de commit y cuerpo de PR (ambos llevan `BOT_MARKER`) |
+| `main.rs` | startup, axum server, static UI with SPA fallback, shutdown on SIGTERM |
+| `config.rs` | environment variables (`GIT_OPT_*`); nothing editable at runtime |
+| `settings.rs` | settings edited from the UI (JSON in the `settings` table); `sanitized()` clamps values |
+| `db.rs` + `migrations/` | **every** SQL query. Do not write SQL outside `db.rs` |
+| `api.rs` | `/api/*` routes; errors as `{ "error": "..." }` |
+| `jobs.rs` | in-memory queue: dedupes per repo, never runs two jobs for the same repo at once, live progress |
+| `scheduler.rs` | ticker (15 s) that queues due work, and a dispatcher whose concurrency is re-read on every loop |
+| `pipeline.rs` | per-repo work: fetch → candidates → optimize → commit → push → PR; adding repos and syncing sources |
+| `git.rs` | the **only** place that runs `git`. Holds the `BOT_MARKER` constant |
+| `github.rs` | REST client and token resolution (UI → env → `gh auth token`) |
+| `optimizers/` | `Optimizer` trait, registry, oxipng/jpegtran/gifsicle, pixel verification |
+| `report.rs` | commit message and PR body (both carry `BOT_MARKER`) |
 
-## Invariantes que no se pueden romper
+## Invariants that must not break
 
-- **Sin pérdidas de verdad.** Todo optimizador implementa `verify` y debe demostrar equivalencia (hoy: decodificar y comparar píxeles/frames). Si no se puede verificar, no se toca el fichero. Nunca actives opciones con pérdida (`--lossy`, `optimize_alpha`, `scale_16`, `-copy none` en JPEG…).
-- **El marcador** `Git-Opt: lossless-optimization` va en cada commit y PR del bot. La detección de "ya optimizado" se basa en los blobs que introducen esos commits (`Git::blobs_from_bot_commits`); cambiar el texto rompe el reconocimiento del historial existente.
-- **Identidad del desarrollador.** Commits con `git config` del sistema (o lo fijado en Ajustes, o la cuenta de GitHub); API y push con su token. No hay cuenta "bot".
-- **Secretos.** El token nunca va en argumentos ni URLs: se pasa a git con `GIT_CONFIG_COUNT/KEY/VALUE` (`GitAuth`). No lo registres en logs ni lo devuelvas por la API (`PUT /api/settings/github-token` es de solo escritura).
-- **El clon es del bot.** Vive en `$GIT_OPT_DATA_DIR/repos/<owner>/<name>`; se puede hacer `checkout --force`/`clean` sin miedo. Commits con `--no-verify` y `core.hooksPath=/dev/null`.
-- **Nada de ruido en el historial**: las comprobaciones programadas sin cambios no crean filas en `runs`; los errores repetidos tampoco.
+- **Truly lossless.** Every optimizer implements `verify` and must prove equivalence (today: decode both and compare pixels/frames). If it cannot be verified, the file is not touched. Never enable lossy options (`--lossy`, `optimize_alpha`, `scale_16`, `-copy none` for JPEG…).
+- **The marker** `Git-Opt: lossless-optimization` goes in every bot commit and PR. "Already optimized" detection relies on the blobs those commits introduce (`Git::blobs_from_bot_commits`); changing the text breaks recognition of existing history.
+- **The developer's identity.** Commits use the system `git config` (or what is set in Settings, or the GitHub account); API calls and pushes use their token. There is no "bot" account.
+- **Secrets.** The token never goes into arguments or URLs: it reaches git through `GIT_CONFIG_COUNT/KEY/VALUE` (`GitAuth`). Do not log it or return it from the API (`PUT /api/settings/github-token` is write-only).
+- **The clone belongs to the bot.** It lives in `$GIT_OPT_DATA_DIR/repos/<owner>/<name>`; `checkout --force`/`clean` are fine. Commits use `--no-verify` and `core.hooksPath=/dev/null`.
+- **No noise in the history**: scheduled checks that find nothing new do not create `runs` rows, and neither do repeated identical errors.
 
-## Añadir un optimizador / tipo de fichero
+## Adding an optimizer / file type
 
-1. Nuevo módulo en `backend/src/optimizers/` que implemente `Optimizer` (`id` estable, `extensions`, `profile` con todo lo que altera la salida, `probe`, `optimize`, `verify`).
-2. Registrarlo en `Registry::new`.
-3. Si es una herramienta externa, usar `external::run_on_bytes` y añadirla al `Dockerfile` (etapa runtime).
-4. Tests en `optimizers/mod.rs`: que reduce tamaño, que `verify` rechaza un cambio mínimo y que un fichero ya óptimo se deja igual.
-5. Añadir su línea en el bloque "How" de `report::pr_body` y en la tabla del README.
+1. New module in `backend/src/optimizers/` implementing `Optimizer` (stable `id`, `extensions`, `profile` covering everything that changes the output, `probe`, `optimize`, `verify`).
+2. Register it in `Registry::new`.
+3. If it wraps an external tool, use `external::run_on_bytes` and add the tool to the `Dockerfile` (runtime stage).
+4. Tests in `optimizers/mod.rs`: it shrinks a file, `verify` rejects a minimal change, and an already optimal file is left alone.
+5. Add its line to the "How" block in `report::pr_body` and to the README table.
 
-El pipeline, la caché (`blob_cache` con clave `blob + profile`), la UI y los informes no necesitan cambios.
+The pipeline, the cache (`blob_cache`, keyed by `blob + profile`), the UI and the reports need no changes.
 
-## Esquema y migraciones
+## Schema and migrations
 
-SQLite vía `sqlx` con `sqlx::migrate!`. Para cambiar el esquema añade `backend/migrations/000N_descripcion.sql`; **no edites migraciones ya publicadas**. Las fechas son `DateTime<Utc>` (texto RFC 3339 comparable lexicográficamente).
+SQLite through `sqlx` with `sqlx::migrate!`. To change the schema add `backend/migrations/000N_description.sql`; **never edit a migration that has been published**. Dates are `DateTime<Utc>` (RFC 3339 text, lexicographically comparable).
 
 ## Frontend
 
-Vue 3 + Vite + TypeScript + vue-router, CSS propio sin frameworks de UI. Textos en español. El contrato de la API está en los tipos de `frontend/src/types.ts`; si cambias un modelo en `backend/src/models.rs` o una respuesta en `api.rs`, actualiza ambos lados.
+Vue 3 + Vite + TypeScript + vue-router, hand-written CSS without UI frameworks. The API contract lives in the types in `frontend/src/types.ts`; if you change a model in `backend/src/models.rs` or a response in `api.rs`, update both sides.
 
-## Idiomas
+## Language
 
-- Código, identificadores, comentarios y logs: inglés.
-- UI y mensajes de error de la API pensados para el usuario: español.
-- Commits y PRs que genera el bot: inglés (van a repos de terceros).
+Everything in the repository is in **English**: code, comments, logs, UI texts, API messages, docs, commit messages, and the commits/PRs the bot generates.
 
-## Commits de este repo
+## Commits in this repo
 
-Commits pequeños y frecuentes con mensajes cortos de una línea en inglés, en imperativo ("Add fork mode retry"). Sin descripciones largas y **sin trailers `Co-Authored-By` ni ninguna atribución a asistentes de IA**.
+Small, **atomic** commits: one logical change each, and every commit must build on its own. Short one-line imperative messages ("Add fork mode retry"). No long descriptions and **no `Co-Authored-By` trailers or any AI assistant attribution**.
 
-## Pruebas sin tocar GitHub
+## Testing without GitHub
 
-`scripts/mock-github.py` imita los endpoints que usamos (repos, forks, pulls, `/user`) con repos *bare* locales como `clone_url` (`file://…`; sin `https` no se inyecta auth). `scripts/e2e.sh` lo usa para probar: alta → PR → píxeles idénticos (ImageMagick) → merge → nada pendiente → repo de terceros en modo fork con aprobación manual. Nunca pruebes contra repos reales sin permiso explícito: crear forks y PRs es visible para otras personas.
+`scripts/mock-github.py` imitates the endpoints we use (repos, forks, pulls, `/user`) with local *bare* repositories as `clone_url` (`file://…`; without `https` no auth is injected). `scripts/e2e.sh` uses it to test: add repo → PR → identical pixels (ImageMagick) → merge → nothing pending → third-party repo in fork mode with manual approval. Never test against real repositories without explicit permission: forks and PRs are visible to other people.
