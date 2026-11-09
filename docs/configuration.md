@@ -22,7 +22,7 @@ git-opt has three layers of configuration:
 
 The token decides **who** the PRs, forks and pushes belong to. git-opt uses the first one it finds:
 
-1. the token saved in **Settings → GitHub token** (validated against GitHub before saving; write-only);
+1. the token saved in **Settings → GitHub** (validated against GitHub before saving; write-only; *Remove saved token* deletes it);
 2. `GIT_OPT_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`;
 3. `gh auth token --hostname <host>`, i.e. the GitHub CLI session of the user running git-opt.
 
@@ -36,23 +36,23 @@ The resolved token is cached for 5 minutes. The Dashboard shows which source is 
 
 ## Global settings
 
-| Setting (UI) | Key | Default | Range | Effect |
+| Settings page → field | Key | Default | Range | Effect |
 |---|---|---|---|---|
-| Check interval | `poll_interval_minutes` | `20` | 1–10080 | Base time between two checks of a repository. |
-| Random extra delay | `poll_jitter_minutes` | `20` | 0–1440 | A uniform random delay in `[0, jitter]` is added to every interval. |
-| Concurrent repositories | `max_concurrent_jobs` | `2` | 1–32 | How many repositories are processed at the same time. |
-| Source re-sync | `source_sync_interval_minutes` | `360` | 5–10080 | How often users/orgs are re-listed to find new repositories. |
-| Minimum saving (%) | `min_savings_percent` | `1.0` | 0–99 | A file is only changed if it shrinks at least this much… |
-| Minimum saving (bytes) | `min_savings_bytes` | `256` | ≥ 0 | …and at least this many bytes. |
-| Maximum file size | `max_file_size_mb` | `30` | 1–1024 | Bigger files are skipped. |
-| PNG compression effort | `png_level` | `3` | 0–6 | oxipng preset. Higher is smaller and slower. |
-| Strip PNG metadata | `strip_metadata` | off | | Removes PNG chunks that do not affect rendering (text, time…). Color-related chunks are kept. JPEG metadata is never removed. |
-| Formats | `optimizers` | all on | | Per-optimizer switch (`oxipng`, `jpegtran`, `gifsicle`). An optimizer whose tool is not installed is reported as unavailable and skipped. |
+| Checks → Interval (minutes) | `poll_interval_minutes` | `20` | 1–10080 | Base time between two checks of a repository. |
+| Checks → Max random delay (minutes) | `poll_jitter_minutes` | `20` | 0–1440 | A uniform random delay in `[0, jitter]` is added to every interval. |
+| Checks → Repositories at once | `max_concurrent_jobs` | `2` | 1–32 | How many repositories are processed at the same time. |
+| Checks → Re-list sources every (minutes) | `source_sync_interval_minutes` | `360` | 5–10080 | How often users/orgs are re-listed to find new repositories. |
+| Optimization → Min savings (%) | `min_savings_percent` | `1.0` | 0–99 | A file is only changed if it shrinks at least this much… |
+| Optimization → Min savings (bytes) | `min_savings_bytes` | `256` | ≥ 0 | …and at least this many bytes. |
+| Optimization → Max file size (MB) | `max_file_size_mb` | `30` | 1–1024 | Bigger files are skipped. |
+| Optimization → PNG compression effort | `png_level` | `3` | 0–6 | oxipng preset. Higher is smaller and slower. |
+| Optimization → Strip PNG metadata that doesn't affect rendering | `strip_metadata` | off | | Removes PNG chunks that do not affect rendering (text, time…). Color-related chunks are kept. JPEG metadata is never removed. |
+| Optimization → Formats | `optimizers` | all on | | Per-optimizer switch (`oxipng`, `jpegtran`, `gifsicle`). An optimizer whose tool is not installed is reported as unavailable and skipped. |
 | Ignored files | `ignore_globs` | empty | | Patterns ignored in every repository (see below). |
-| Working branch | `branch_name` | `git-opt/optimize-images` | | Branch the bot pushes to. Changing it while a PR is open leaves the old PR alone and opens a new one. |
-| Commit and PR title | `commit_title` | `[git-opt] Optimize images` | | Subject of the commit and title of the PR. |
-| Commit author name / email | `commit_author_name`, `commit_author_email` | empty | | Override the commit author. Both must be set. See [author resolution](how-it-works.md#35-commit). |
-| Sign commits | `sign_commits` | on | | When off, passes `-c commit.gpgsign=false` to git. |
+| Commits and PRs → Working branch | `branch_name` | `git-opt/optimize-images` | | Branch the bot pushes to. Changing it while a PR is open leaves the old PR alone and opens a new one. |
+| Commits and PRs → Commit and PR title | `commit_title` | `[git-opt] Optimize images` | | Subject of the commit and title of the PR. |
+| Commits and PRs → Commit author / Author email | `commit_author_name`, `commit_author_email` | empty | | Override the commit author. Both must be set. See [author resolution](how-it-works.md#35-commit). |
+| Commits and PRs → Sign commits | `sign_commits` | on | | When off, passes `-c commit.gpgsign=false` to git. |
 
 Changing the interval or the jitter reschedules repositories whose next check would otherwise be later than the new interval allows.
 
@@ -62,10 +62,10 @@ Changing `png_level` or `strip_metadata` changes the PNG optimizer's cache key, 
 
 | Setting | Default | Effect |
 |---|---|---|
-| Watch this repository | on | Off pauses scheduled checks (manual checks still work). Turning it back on checks immediately. |
+| Watch this repository (*Pause* / *Resume*) | on | Off pauses scheduled checks (manual checks still work). Turning it back on checks immediately. |
 | Open PRs automatically | on | Off: the bot prepares the commit and waits for **Open PR**. |
-| Mode | from permissions | **Direct** (push to the repository) or **Fork (contribution)** (push to your fork). |
-| Check interval | global | Overrides the global interval for this repository. The global jitter still applies. |
+| How to send changes | from permissions | **Direct** (push to the repository) or **Fork (contribution)** (push to your fork). |
+| Check frequency | *Use the global interval* | Untick it to set an interval for this repository. The global random delay still applies. |
 | Ignored files | empty | Added to the global patterns. |
 | Forget rejected files | | Clears the list of files from PRs that were closed without merging. |
 
