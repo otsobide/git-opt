@@ -121,7 +121,7 @@ pub struct Run {
     pub repo_id: i64,
     /// `schedule` | `manual` | `publish`
     pub trigger: String,
-    /// `running` | `no_changes` | `up_to_date` | `awaiting_approval` |
+    /// `no_changes` | `up_to_date` | `awaiting_approval` |
     /// `pr_opened` | `pr_updated` | `error`
     pub status: String,
     pub started_at: DateTime<Utc>,

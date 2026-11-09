@@ -326,6 +326,16 @@ impl Db {
         Ok(())
     }
 
+    pub async fn set_status(&self, id: i64, status: &str, error: Option<&str>) -> Result<()> {
+        sqlx::query("UPDATE repos SET status = ?, last_error = ? WHERE id = ?")
+            .bind(status)
+            .bind(error)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn set_pending_commit(&self, id: i64, commit: Option<&str>) -> Result<()> {
         sqlx::query("UPDATE repos SET pending_commit = ? WHERE id = ?")
             .bind(commit)
@@ -357,24 +367,18 @@ impl Db {
 
     // -------------------------------------------------------------------- runs
 
-    pub async fn create_run(&self, repo_id: i64, trigger: &str) -> Result<i64> {
+    /// Stores a finished run. Runs are written once, at the end, so routine
+    /// "nothing changed" polls can be skipped entirely.
+    pub async fn insert_run(&self, repo_id: i64, trigger: &str, started_at: DateTime<Utc>, o: &RunOutcome) -> Result<i64> {
         Ok(sqlx::query_scalar(
-            "INSERT INTO runs (repo_id, trigger, status, started_at) VALUES (?, ?, 'running', ?) RETURNING id",
+            "INSERT INTO runs (repo_id, trigger, status, started_at, finished_at, head_sha, commit_sha, files_scanned,
+                files_optimized, bytes_before, bytes_after, pr_number, pr_url, message)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
         )
         .bind(repo_id)
         .bind(trigger)
-        .bind(Utc::now())
-        .fetch_one(&self.pool)
-        .await?)
-    }
-
-    pub async fn finish_run(&self, id: i64, o: &RunOutcome) -> Result<()> {
-        sqlx::query(
-            "UPDATE runs SET status = ?, finished_at = ?, head_sha = ?, commit_sha = ?, files_scanned = ?,
-                files_optimized = ?, bytes_before = ?, bytes_after = ?, pr_number = ?, pr_url = ?, message = ?
-             WHERE id = ?",
-        )
         .bind(&o.status)
+        .bind(started_at)
         .bind(Utc::now())
         .bind(&o.head_sha)
         .bind(&o.commit_sha)
@@ -385,10 +389,8 @@ impl Db {
         .bind(o.pr_number)
         .bind(&o.pr_url)
         .bind(&o.message)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+        .fetch_one(&self.pool)
+        .await?)
     }
 
     pub async fn add_run_files(&self, run_id: i64, files: &[NewRunFile]) -> Result<()> {
@@ -453,16 +455,15 @@ impl Db {
         .await?)
     }
 
-    /// Runs left in `running` by a crash or restart.
-    pub async fn abort_stale_runs(&self) -> Result<u64> {
-        Ok(sqlx::query(
-            "UPDATE runs SET status = 'error', finished_at = ?, message = 'interrupted (server restart)'
-             WHERE status = 'running'",
+    /// The run that produced a given local commit (used by manual publish).
+    pub async fn run_by_commit(&self, repo_id: i64, commit: &str) -> Result<Option<Run>> {
+        Ok(sqlx::query_as(
+            "SELECT *, NULL AS repo_full_name FROM runs WHERE repo_id = ? AND commit_sha = ? ORDER BY id DESC LIMIT 1",
         )
-        .bind(Utc::now())
-        .execute(&self.pool)
-        .await?
-        .rows_affected())
+        .bind(repo_id)
+        .bind(commit)
+        .fetch_optional(&self.pool)
+        .await?)
     }
 
     pub async fn totals(&self) -> Result<Totals> {
