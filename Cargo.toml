@@ -5,3 +5,7 @@ members = ["backend"]
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Image codecs are far too slow unoptimized; keep our own crate fast to rebuild.
+[profile.dev.package."*"]
+opt-level = 3
