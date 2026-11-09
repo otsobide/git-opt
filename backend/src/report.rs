@@ -77,6 +77,9 @@ pub fn pr_body(files: &[FileReport]) -> String {
     if used("ico") {
         body.push_str("- **ICO/CUR**: embedded PNG images recompressed with oxipng, keeping their pixel format; BMP images untouched.\n");
     }
+    if used("icns") {
+        body.push_str("- **ICNS**: embedded PNG images recompressed with oxipng, keeping their pixel format; every other element untouched.\n");
+    }
     if used("svg") {
         body.push_str("- **SVG**: only comments (license notices are kept), editor metadata (Inkscape, Illustrator, Sketch…) and whitespace between tags were removed; paths, numbers, ids, classes and styles are untouched. Verified by comparing the XML trees and the rendered pixels.\n");
     }

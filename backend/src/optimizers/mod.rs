@@ -9,6 +9,7 @@
 mod external;
 mod gif;
 mod ico;
+mod icns;
 mod jpeg;
 mod png;
 mod svg;
@@ -82,6 +83,7 @@ impl Registry {
             Arc::new(gif::Gifsicle),
             Arc::new(webp::Webp),
             Arc::new(ico::Ico),
+            Arc::new(icns::Icns),
             Arc::new(svg::Svg),
         ];
         let registry = Arc::new(Self { available: RwLock::new(Vec::new()), optimizers });
@@ -473,6 +475,58 @@ mod tests {
         ico.push(0); // trailing byte
         assert!(ico::parse(&ico).is_err());
         assert!(ico::parse(b"\0\0\x01\0").is_err());
+    }
+
+    /// An ICNS with a table of contents, a version element, a bloated PNG
+    /// image and a (fake) RLE image.
+    fn sample_icns() -> Vec<u8> {
+        let png = bloated_png(&RgbaImage::from_fn(128, 128, |x, y| Rgba([(x * 2) as u8, (y * 2) as u8, 64, 255])));
+        let rle: Vec<u8> = (0..120u8).collect();
+        let elements: Vec<(&[u8; 4], Vec<u8>)> =
+            vec![(b"icnV", vec![0x42, 0x00, 0x00, 0x00]), (b"ic07", png), (b"is32", rle)];
+        let toc: Vec<u8> = elements
+            .iter()
+            .flat_map(|(k, d)| k.iter().copied().chain(((d.len() + 8) as u32).to_be_bytes()))
+            .collect();
+        let mut body = Vec::new();
+        for (kind, data) in std::iter::once((b"TOC ", toc)).chain(elements) {
+            body.extend_from_slice(kind);
+            body.extend_from_slice(&((data.len() + 8) as u32).to_be_bytes());
+            body.extend_from_slice(&data);
+        }
+        let mut out = b"icns".to_vec();
+        out.extend_from_slice(&((body.len() + 8) as u32).to_be_bytes());
+        out.extend_from_slice(&body);
+        out
+    }
+
+    #[tokio::test]
+    async fn icns_png_elements_shrink_and_toc_follows() {
+        let input = Arc::new(sample_icns());
+        match process(&icns::Icns, input.clone(), &Settings::default()).await {
+            Outcome::Optimized(out) => {
+                assert!(out.len() < input.len());
+                let elements = icns::parse(&out).unwrap();
+                let kinds: Vec<&[u8; 4]> = elements.iter().map(|e| &e.kind).collect();
+                assert_eq!(kinds, [b"TOC ", b"icnV", b"ic07", b"is32"]);
+                assert_eq!(elements[3].data, (0..120u8).collect::<Vec<_>>().as_slice());
+                let toc_png_len = u32::from_be_bytes(elements[0].data[12..16].try_into().unwrap()) as usize;
+                assert_eq!(toc_png_len, elements[2].data.len() + 8, "TOC must carry the new PNG size");
+            }
+            other => panic!("expected optimization, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn icns_verifier_rejects_changed_elements() {
+        let original = sample_icns();
+        let mut altered = original.clone();
+        let last = altered.len() - 1;
+        altered[last] ^= 1; // inside the RLE element
+        assert!(icns::Icns.verify(Arc::new(original.clone()), Arc::new(altered)).await.is_err());
+        let mut truncated = original;
+        truncated.pop();
+        assert!(icns::parse(&truncated).is_err());
     }
 
     #[test]
