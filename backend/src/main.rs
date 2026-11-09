@@ -3,6 +3,7 @@ mod db;
 mod git;
 mod github;
 mod optimizers;
+mod report;
 mod models;
 mod settings;
 
