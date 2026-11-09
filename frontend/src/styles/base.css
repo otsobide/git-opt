@@ -169,11 +169,18 @@ code,
 .field {
   display: grid;
   gap: 0.3rem;
+  align-content: start;
 }
 .field > label,
 .field-label {
   font-size: var(--fs-sm);
   font-weight: 500;
+}
+.field > label.check {
+  font-weight: 400;
+}
+.input.mono {
+  font-family: var(--font-mono);
 }
 .hint {
   font-size: var(--fs-xs);
@@ -197,6 +204,8 @@ code,
 /* Segmented control built from radio buttons. */
 .segmented {
   display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -255,6 +264,15 @@ code,
   padding: 0.55rem 0.75rem;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
+}
+.table th.num {
+  text-align: right;
+}
+.table a {
+  text-decoration: none;
+}
+.table a:hover {
+  text-decoration: underline;
 }
 .table tbody tr:last-child td {
   border-bottom: 0;
