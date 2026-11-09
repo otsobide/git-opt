@@ -64,6 +64,75 @@ website() {
   png public/img/logo.png 256x256 radial-gradient:'#f59e0b'-'#b45309'
   jpg public/photos/team.jpg 900x600 3
   jpg public/photos/office.jpg 900x600 11
+  magick -size 480x320 plasma:fractal -seed 5 -define webp:lossless=true -define webp:method=0 public/photos/map.webp
+  ico public/favicon.ico 128
+  inkscape_svg public/img/mark.svg
+}
+# ico <path> <size>: an icon holding one uncompressed PNG (ImageMagick writes BMP entries).
+ico() {
+  png "$WORK/ico.png" "$2x$2" radial-gradient:'#22d3ee'-'#0e7490'
+  python3 -I - "$WORK/ico.png" "$1" "$2" <<'PY'
+import struct, sys
+png = open(sys.argv[1], "rb").read()
+size = int(sys.argv[3]) % 256
+open(sys.argv[2], "wb").write(struct.pack("<HHHBBBBHHII", 0, 1, 1, size, size, 0, 0, 1, 32, len(png), 22) + png)
+PY
+}
+# An SVG saved by Inkscape, with its editor metadata.
+inkscape_svg() {
+  cat >"$1" <<'SVG'
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   width="96"
+   height="96"
+   viewBox="0 0 96 96"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3 (0e150ed6c4, 2023-07-21)"
+   sodipodi:docname="mark.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     inkscape:zoom="5.6"
+     inkscape:cx="48"
+     inkscape:cy="48"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:#0e7490;stroke:none"
+       id="rect1"
+       width="72"
+       height="72"
+       x="12"
+       y="12"
+       rx="14" />
+    <path
+       style="fill:#f59e0b"
+       d="M 30,66 48,28 66,66 Z"
+       id="path1"
+       sodipodi:nodetypes="cccc" />
+  </g>
+</svg>
+SVG
 }
 docs() { mkdir -p assets && png assets/diagram.png 800x450 gradient:'#0f766e'-'#a7f3d0' && jpg assets/cover.jpg 1000x500 5; }
 mobile() { mkdir -p res store && png res/icon.png 512x512 radial-gradient:'#22c55e'-'#14532d' && png res/splash.png 720x1280 gradient:'#111827'-'#4b5563' && jpg store/screen-1.jpg 600x1000 8; }
