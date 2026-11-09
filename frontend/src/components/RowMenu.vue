@@ -1,47 +1,78 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
-// Compact "more actions" menu. Closes on outside click or Escape.
+// Compact "more actions" menu. Positioned as `fixed` from the trigger so
+// scrolling table containers cannot clip it. Closes on outside click,
+// Escape, scroll or resize.
 defineProps<{ label?: string }>()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
+const menu = ref<HTMLElement | null>(null)
+const style = ref<Record<string, string>>({})
 
+const MARGIN = 8
+
+async function place() {
+  const t = trigger.value?.getBoundingClientRect()
+  if (!t) return
+  style.value = { top: `${t.bottom + 4}px`, left: `${t.left}px`, visibility: 'hidden' }
+  await nextTick()
+  const m = menu.value?.getBoundingClientRect()
+  if (!m) return
+  // Prefer right-aligning to the trigger; keep the menu inside the viewport.
+  let left = t.right - m.width
+  left = Math.min(Math.max(MARGIN, left), window.innerWidth - m.width - MARGIN)
+  let top = t.bottom + 4
+  if (top + m.height > window.innerHeight - MARGIN) top = Math.max(MARGIN, t.top - m.height - 4)
+  style.value = { top: `${top}px`, left: `${left}px` }
+}
+
+function close() {
+  open.value = false
+}
 function onDocClick(e: MouseEvent) {
-  if (root.value && !root.value.contains(e.target as Node)) open.value = false
+  if (root.value && !root.value.contains(e.target as Node)) close()
 }
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') open.value = false
+  if (e.key === 'Escape') {
+    close()
+    trigger.value?.focus()
+  }
+}
+
+function listen(on: boolean) {
+  const fn = on ? document.addEventListener.bind(document) : document.removeEventListener.bind(document)
+  fn('click', onDocClick)
+  fn('keydown', onKey)
+  const w = on ? window.addEventListener.bind(window) : window.removeEventListener.bind(window)
+  w('scroll', close, true)
+  w('resize', close)
 }
 
 watch(open, (v) => {
-  if (v) {
-    document.addEventListener('click', onDocClick)
-    document.addEventListener('keydown', onKey)
-  } else {
-    document.removeEventListener('click', onDocClick)
-    document.removeEventListener('keydown', onKey)
-  }
+  listen(v)
+  if (v) void place()
 })
 
-onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocClick)
-  document.removeEventListener('keydown', onKey)
-})
+onBeforeUnmount(() => listen(false))
 </script>
 
 <template>
   <div ref="root" class="rowmenu" @click.stop>
     <button
+      ref="trigger"
       type="button"
       class="btn btn-quiet btn-sm"
+      aria-haspopup="menu"
       :aria-expanded="open"
       :aria-label="label || 'Más acciones'"
       @click="open = !open"
     >
       ⋯
     </button>
-    <div v-if="open" class="menu" role="menu" @click="open = false">
+    <div v-if="open" ref="menu" class="menu" role="menu" :style="style" @click="close">
       <slot />
     </div>
   </div>
@@ -49,15 +80,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .rowmenu {
-  position: relative;
   display: inline-block;
 }
 .menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.25rem);
-  z-index: 20;
+  position: fixed;
+  z-index: 40;
   min-width: 12rem;
+  max-width: calc(100vw - 16px);
   display: grid;
   padding: 0.3rem;
   background: var(--surface);
@@ -65,6 +94,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.14);
   text-align: left;
+  white-space: normal;
 }
 .menu :deep(button),
 .menu :deep(a) {
@@ -81,9 +111,13 @@ onBeforeUnmount(() => {
   text-decoration: none;
   cursor: pointer;
 }
-.menu :deep(button:hover),
+.menu :deep(button:hover:not(:disabled)),
 .menu :deep(a:hover) {
   background: var(--surface-2);
+}
+.menu :deep(button:disabled) {
+  color: var(--faint);
+  cursor: not-allowed;
 }
 .menu :deep(.danger) {
   color: var(--danger);
