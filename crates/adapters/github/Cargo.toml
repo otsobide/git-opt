@@ -1,0 +1,18 @@
+[package]
+name = "git-opt-github"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "git-opt adapter: the CodeForge port implemented with the GitHub REST API"
+
+[dependencies]
+git-opt-domain = { path = "../../domain" }
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "query", "http2"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", features = ["process", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
