@@ -1,0 +1,18 @@
+# systemd *user* unit: runs as you, so it uses your git config and `gh` session.
+#   install -Dm644 contrib/git-opt.service ~/.config/systemd/user/git-opt.service
+#   systemctl --user enable --now git-opt
+#   loginctl enable-linger "$USER"   # keep it running while logged out
+[Unit]
+Description=git-opt: lossless image optimization bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/git-opt
+Environment=GIT_OPT_STATIC_DIR=%h/.local/share/git-opt/web
+# Environment=GIT_OPT_ADMIN_TOKEN=change-me
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
