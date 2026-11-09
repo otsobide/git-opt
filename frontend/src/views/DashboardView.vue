@@ -53,6 +53,12 @@ const identitySource: Record<string, string> = {
   git: 'de git config',
   github: 'de tu cuenta de GitHub',
 }
+const identityHint = computed(() => {
+  const g = status.value?.git
+  if (!g?.identity) return ''
+  const source = g.identity_source ? identitySource[g.identity_source] : null
+  return source ? `${g.identity.email}, ${source}` : g.identity.email
+})
 const tokenSource: Record<string, string> = {
   settings: 'token guardado en Ajustes',
   env: 'token de variable de entorno',
@@ -204,10 +210,7 @@ const tokenSource: Record<string, string> = {
             <dd>
               <template v-if="status.git.identity">
                 {{ status.git.identity.name }}
-                <div class="hint">
-                  {{ status.git.identity.email }}
-                  <template v-if="status.git.identity_source">, {{ identitySource[status.git.identity_source] }}</template>
-                </div>
+                <div class="hint">{{ identityHint }}</div>
               </template>
               <span v-else class="tag warn">sin identidad</span>
             </dd>
@@ -311,7 +314,7 @@ const tokenSource: Record<string, string> = {
   gap: 1.75rem;
 }
 .saving {
-  width: 40%;
+  width: 34%;
 }
 .optimizers {
   list-style: none;

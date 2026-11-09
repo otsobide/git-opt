@@ -41,6 +41,9 @@ function isActive(to: string) {
 const running = computed(() => status.value?.jobs.running.length ?? 0)
 const queued = computed(() => status.value?.jobs.queued.length ?? 0)
 const github = computed(() => status.value?.github)
+const jobsText = computed(() =>
+  [running.value && `${running.value} en curso`, queued.value && `${queued.value} en cola`].filter(Boolean).join(', '),
+)
 </script>
 
 <template>
@@ -63,8 +66,8 @@ const github = computed(() => status.value?.github)
       <div class="whoami small">
         <p v-if="statusError" class="error-text">Sin conexión con el servidor</p>
         <template v-else-if="status">
-          <p v-if="running" class="tag ok live">{{ running }} en curso<span v-if="queued">, {{ queued }} en cola</span></p>
-          <p v-else-if="queued" class="tag hollow">{{ queued }} en cola</p>
+          <p v-if="running" class="tag ok live">{{ jobsText }}</p>
+          <p v-else-if="queued" class="tag hollow">{{ jobsText }}</p>
           <p v-else class="tag hollow">En espera</p>
           <p v-if="github?.ok && github.login" class="muted">PRs como <strong>@{{ github.login }}</strong></p>
           <p v-else class="tag warn">Sin acceso a GitHub</p>
