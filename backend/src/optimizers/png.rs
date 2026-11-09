@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use image::ImageFormat;
-use oxipng::{Options, StripChunks};
+use oxipng::{Deflater, Options, StripChunks, ZopfliOptions};
 
 use super::{Optimizer, verify};
 use crate::settings::Settings;
@@ -27,7 +27,7 @@ impl Optimizer for Oxipng {
         &["png"]
     }
     fn profile(&self, s: &Settings) -> String {
-        format!("oxipng10:l{}:strip{}", s.png_level, u8::from(s.strip_metadata))
+        format!("oxipng10:l{}:strip{}:zopfli{}", s.png_level, u8::from(s.strip_metadata), u8::from(s.png_zopfli))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
@@ -44,6 +44,9 @@ impl Optimizer for Oxipng {
         // Keep RGB of fully transparent pixels: pixel-exact, not just visually equal.
         opts.optimize_alpha = false;
         opts.scale_16 = false;
+        if s.png_zopfli {
+            opts.deflater = Deflater::Zopfli(ZopfliOptions::default());
+        }
         opts.timeout = Some(Duration::from_secs(120));
         Ok(tokio::task::spawn_blocking(move || oxipng::optimize_from_memory(&input, &opts)).await??)
     }

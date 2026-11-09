@@ -185,6 +185,11 @@ const detected = computed(() => {
           </div>
 
           <label class="check">
+            <input v-model="form.png_zopfli" type="checkbox" />
+            Use Zopfli for PNG (a few % smaller, much slower)
+          </label>
+
+          <label class="check">
             <input v-model="form.strip_metadata" type="checkbox" />
             Strip PNG metadata that doesn't affect rendering (text, timestamps)
           </label>

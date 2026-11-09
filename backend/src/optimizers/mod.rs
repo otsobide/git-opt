@@ -194,6 +194,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn zopfli_png_is_pixel_identical() {
+        let input = Arc::new(bloated_png(&sample()));
+        let settings = Settings { png_zopfli: true, ..Settings::default() };
+        assert_ne!(png::Oxipng.profile(&settings), png::Oxipng.profile(&Settings::default()));
+        match process(&png::Oxipng, input.clone(), &settings).await {
+            Outcome::Optimized(out) => verify::same_pixels(&input, &out, ImageFormat::Png).unwrap(),
+            other => panic!("expected optimization, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn already_optimal_png_is_left_alone() {
         let first = match process(&png::Oxipng, Arc::new(bloated_png(&sample())), &Settings::default()).await {
             Outcome::Optimized(out) => out,

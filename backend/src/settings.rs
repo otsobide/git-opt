@@ -23,6 +23,8 @@ pub struct Settings {
     pub max_file_size_mb: u32,
     /// oxipng preset (0 = fastest, 6 = smallest).
     pub png_level: u8,
+    /// Use Zopfli instead of libdeflate for PNG: a few % smaller, much slower.
+    pub png_zopfli: bool,
     /// Remove metadata that does not affect rendering (EXIF text, PNG text
     /// chunks…). Pixels are never touched either way.
     pub strip_metadata: bool,
@@ -54,6 +56,7 @@ impl Default for Settings {
             min_savings_bytes: 256,
             max_file_size_mb: 30,
             png_level: 3,
+            png_zopfli: false,
             strip_metadata: false,
             optimizers: BTreeMap::new(),
             ignore_globs: String::new(),

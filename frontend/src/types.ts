@@ -121,6 +121,7 @@ export interface Settings {
   min_savings_bytes: number
   max_file_size_mb: number
   png_level: number
+  png_zopfli: boolean
   strip_metadata: boolean
   optimizers: Record<string, boolean>
   ignore_globs: string
