@@ -1,4 +1,4 @@
-//! JSON API consumed by the Vue frontend.
+//! JSON API consumed by the Vue frontend. Messages are user-facing (English).
 
 use axum::{
     Json, Router,
@@ -112,7 +112,7 @@ async fn status(State(app): State<AppState>) -> ApiResult<Json<serde_json::Value
     let settings = app.db.settings().await?;
 
     let github = match app.github.token().await {
-        None => json!({ "ok": false, "error": "No hay token de GitHub: configúralo en Ajustes, exporta GITHUB_TOKEN o ejecuta `gh auth login`." }),
+        None => json!({ "ok": false, "error": "No GitHub token: set one in Settings, export GITHUB_TOKEN or run `gh auth login`." }),
         Some((_, source)) => match app.github.user().await {
             Ok(u) => json!({ "ok": true, "login": u.login, "name": u.name, "token_source": source }),
             Err(e) => json!({ "ok": false, "token_source": source, "error": format!("{e:#}") }),
@@ -244,7 +244,7 @@ async fn create_repo(
         .await
         .map_err(ApiError::bad_request)?;
     if !created {
-        return Err(ApiError::new(StatusCode::CONFLICT, "ese repositorio ya está en la lista"));
+        return Err(ApiError::new(StatusCode::CONFLICT, "that repository is already being watched"));
     }
     app.jobs.enqueue(Job::Check { repo_id: id, trigger: RunTrigger::Manual, force: false });
     Ok((StatusCode::CREATED, Json(view(&app, load_repo(&app, id).await?))))
@@ -270,7 +270,7 @@ async fn patch_repo(
 
 async fn delete_repo(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<StatusCode> {
     if app.jobs.repo_state(id).0 {
-        return Err(ApiError::new(StatusCode::CONFLICT, "el repositorio se está procesando; inténtalo en un momento"));
+        return Err(ApiError::new(StatusCode::CONFLICT, "the repository is being processed; try again in a moment"));
     }
     let repo = app.db.delete_repo(id).await?.ok_or_else(ApiError::not_found)?;
     remove_clone(&app, &repo).await;
@@ -309,7 +309,7 @@ async fn check_all(State(app): State<AppState>) -> ApiResult<StatusCode> {
 async fn publish_repo(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<StatusCode> {
     let repo = load_repo(&app, id).await?;
     if repo.pending_commit.is_none() {
-        return Err(ApiError::new(StatusCode::CONFLICT, "no hay ninguna optimización pendiente de aprobar"));
+        return Err(ApiError::new(StatusCode::CONFLICT, "there is no optimization awaiting approval"));
     }
     app.jobs.enqueue(Job::Publish { repo_id: id });
     Ok(StatusCode::ACCEPTED)
@@ -375,13 +375,13 @@ async fn create_source(
         _ => {
             let n = body.name.trim().trim_start_matches('@').to_string();
             if n.is_empty() || !n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-                return Err(ApiError::new(StatusCode::BAD_REQUEST, "nombre de usuario u organización no válido"));
+                return Err(ApiError::new(StatusCode::BAD_REQUEST, "invalid user or organization name"));
             }
             n
         }
     };
     if app.db.sources().await?.iter().any(|s| s.kind == body.kind && s.name.eq_ignore_ascii_case(&name)) {
-        return Err(ApiError::new(StatusCode::CONFLICT, "esa fuente ya existe"));
+        return Err(ApiError::new(StatusCode::CONFLICT, "that source already exists"));
     }
     let id = app
         .db
@@ -421,7 +421,7 @@ async fn delete_source(
     Query(q): Query<DeleteSourceQuery>,
 ) -> ApiResult<StatusCode> {
     if app.jobs.is_queued_or_running(JobKey::Source(id)) && q.delete_repos {
-        return Err(ApiError::new(StatusCode::CONFLICT, "la fuente se está sincronizando; inténtalo en un momento"));
+        return Err(ApiError::new(StatusCode::CONFLICT, "the source is syncing; try again in a moment"));
     }
     app.db.source(id).await?.ok_or_else(ApiError::not_found)?;
     for repo in app.db.delete_source(id, q.delete_repos).await? {
