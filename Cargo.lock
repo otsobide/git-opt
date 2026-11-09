@@ -857,6 +857,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-opt-http"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "git-opt-application",
+ "git-opt-domain",
+ "serde",
+ "serde_json",
+ "tower-http 0.7.1",
+ "tracing",
+]
+
+[[package]]
 name = "git-opt-sqlite"
 version = "0.1.0"
 dependencies = [
