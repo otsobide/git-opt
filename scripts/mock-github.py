@@ -10,12 +10,14 @@ config.json:
     "repos": {
       "octo/demo":        {"push": true,  "clone": "/abs/path/demo.git"},
       "other/thirdparty": {"push": false, "clone": "/abs/path/third.git", "fork_clone": "/abs/path/fork.git"},
-      "octo/old":         {"push": true,  "clone": "/abs/path/old.git", "archived": true}
+      "octo/old":         {"push": true,  "clone": "/abs/path/old.git", "archived": true},
+      "octo/gone":        {"push": true,  "clone": "/abs/path/gone.git", "deleted": true}
     }
   }
 
 Repos are cloned from local bare repositories (file:// URLs, so git-opt injects
-no credentials). Forking creates "<login>/<name>" backed by "fork_clone".
+no credentials). "deleted" repos are still listed for their owner but answer
+404, like a repository removed after it was imported. Forking creates "<login>/<name>" backed by "fork_clone".
 Test helpers (no auth): POST /_mock/merge/<n>, POST /_mock/close/<n>, GET /_mock/pulls.
 """
 import json
@@ -100,7 +102,10 @@ class Handler(BaseHTTPRequestHandler):
 
         m = re.fullmatch(r"/repos/([^/]+/[^/]+)", path)
         if m:
-            return self.send(200, repo_json(m[1])) if find(m[1])[0] else self.send(404, {"message": "Not Found"})
+            full, info = find(m[1])
+            if not full or info.get("deleted"):
+                return self.send(404, {"message": "Not Found"})
+            return self.send(200, repo_json(full))
 
         m = re.fullmatch(r"/repos/([^/]+/[^/]+)/forks", path)
         if m and method == "POST":
