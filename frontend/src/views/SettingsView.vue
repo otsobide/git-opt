@@ -37,7 +37,7 @@ async function save() {
     const saved = await api.saveSettings(form.value)
     form.value = structuredClone(saved)
     original.value = JSON.stringify(saved)
-    toast.ok('Ajustes guardados')
+    toast.ok('Settings saved')
     await refreshStatus()
   } catch (e) {
     toast.error(e)
@@ -63,10 +63,10 @@ function setOptimizer(id: string, on: boolean) {
 
 const levelText = computed(() => {
   const l = form.value?.png_level ?? 3
-  if (l <= 1) return 'rápido, menos ahorro'
-  if (l <= 3) return 'equilibrado'
-  if (l <= 5) return 'más ahorro, más lento'
-  return 'máximo ahorro, muy lento'
+  if (l <= 1) return 'fast, smaller savings'
+  if (l <= 3) return 'balanced'
+  if (l <= 5) return 'more savings, slower'
+  return 'maximum savings, very slow'
 })
 
 // ------------------------------------------------------------ github token
@@ -80,7 +80,7 @@ async function saveToken(token: string | null) {
     await api.setGithubToken(token)
     tokenSet.value = token !== null
     newToken.value = ''
-    toast.ok(token ? 'Token guardado' : 'Token borrado')
+    toast.ok(token ? 'Token saved' : 'Token removed')
     await refreshStatus()
   } catch (e) {
     toast.error(e)
@@ -90,9 +90,9 @@ async function saveToken(token: string | null) {
 }
 
 const TOKEN_SOURCE: Record<string, string> = {
-  settings: 'el token guardado aquí',
-  env: 'la variable de entorno del servidor',
-  gh: 'la sesión de gh CLI del servidor',
+  settings: 'the token saved here',
+  env: 'the server environment variable',
+  gh: 'the server gh CLI session',
 }
 
 const detected = computed(() => {
@@ -105,8 +105,8 @@ const detected = computed(() => {
   <div class="page">
     <header class="page-head">
       <div>
-        <h1>Ajustes</h1>
-        <p class="lede">Valores globales. Cada repositorio puede cambiar su intervalo y sus archivos ignorados.</p>
+        <h1>Settings</h1>
+        <p class="lede">Global values. Each repository can override its interval and ignored files.</p>
       </div>
     </header>
 
@@ -115,27 +115,27 @@ const detected = computed(() => {
     <form v-if="form" class="settings" @submit.prevent="save">
       <section class="group">
         <div class="group-head">
-          <h2>Comprobaciones</h2>
+          <h2>Checks</h2>
           <p class="hint">
-            Cada repositorio hace <code>git fetch</code> cada {{ minutes(form.poll_interval_minutes) }} más un retraso al azar
-            de hasta {{ minutes(form.poll_jitter_minutes) }}, para que no coincidan todos a la vez.
+            Each repository runs <code>git fetch</code> every {{ minutes(form.poll_interval_minutes) }} plus a random delay
+            of up to {{ minutes(form.poll_jitter_minutes) }}, so they don't all run at once.
           </p>
         </div>
         <div class="fields two">
           <div class="field">
-            <label for="interval">Intervalo (minutos)</label>
+            <label for="interval">Interval (minutes)</label>
             <input id="interval" v-model.number="form.poll_interval_minutes" class="input" type="number" min="1" />
           </div>
           <div class="field">
-            <label for="jitter">Retraso aleatorio máximo (minutos)</label>
+            <label for="jitter">Max random delay (minutes)</label>
             <input id="jitter" v-model.number="form.poll_jitter_minutes" class="input" type="number" min="0" />
           </div>
           <div class="field">
-            <label for="jobs">Repositorios a la vez</label>
+            <label for="jobs">Repositories at once</label>
             <input id="jobs" v-model.number="form.max_concurrent_jobs" class="input" type="number" min="1" max="32" />
           </div>
           <div class="field">
-            <label for="sync">Revisar fuentes cada (minutos)</label>
+            <label for="sync">Re-list sources every (minutes)</label>
             <input
               id="sync"
               v-model.number="form.source_sync_interval_minutes"
@@ -143,22 +143,22 @@ const detected = computed(() => {
               type="number"
               min="5"
             />
-            <span class="hint">Para descubrir repositorios nuevos de usuarios y organizaciones.</span>
+            <span class="hint">To discover new repositories of users and organizations.</span>
           </div>
         </div>
       </section>
 
       <section class="group">
         <div class="group-head">
-          <h2>Optimización</h2>
+          <h2>Optimization</h2>
           <p class="hint">
-            Solo se aceptan cambios sin pérdidas: cada imagen optimizada se decodifica y se compara píxel a píxel con la
-            original antes de guardarla.
+            Only lossless changes are accepted: every optimized image is decoded and compared pixel by pixel with the
+            original before it is kept.
           </p>
         </div>
         <div class="fields">
           <fieldset class="field">
-            <legend class="field-label">Formatos</legend>
+            <legend class="field-label">Formats</legend>
             <ul class="optimizers">
               <li v-for="o in optimizers" :key="o.id">
                 <label class="check">
@@ -172,52 +172,52 @@ const detected = computed(() => {
                 <span class="hint">
                   {{ o.extensions.map((e) => '.' + e).join(' ') }}
                   <span v-if="o.available"> ({{ o.detail }})</span>
-                  <span v-else class="error-text"> No disponible: {{ o.detail }}</span>
+                  <span v-else class="error-text"> Unavailable: {{ o.detail }}</span>
                 </span>
               </li>
-              <li v-if="!optimizers.length" class="hint">Cargando optimizadores…</li>
+              <li v-if="!optimizers.length" class="hint">Loading optimizers…</li>
             </ul>
           </fieldset>
 
           <div class="field">
-            <label for="level">Esfuerzo de compresión PNG: {{ form.png_level }}, {{ levelText }}</label>
+            <label for="level">PNG compression effort: {{ form.png_level }}, {{ levelText }}</label>
             <input id="level" v-model.number="form.png_level" class="range" type="range" min="0" max="6" step="1" />
           </div>
 
           <label class="check">
             <input v-model="form.strip_metadata" type="checkbox" />
-            Quitar de los PNG los metadatos que no cambian cómo se ven (textos, fechas)
+            Strip PNG metadata that doesn't affect rendering (text, timestamps)
           </label>
 
           <div class="fields three">
             <div class="field">
-              <label for="min-pct">Ahorro mínimo (%)</label>
+              <label for="min-pct">Min savings (%)</label>
               <input id="min-pct" v-model.number="form.min_savings_percent" class="input" type="number" min="0" step="0.1" />
             </div>
             <div class="field">
-              <label for="min-bytes">Ahorro mínimo (bytes)</label>
+              <label for="min-bytes">Min savings (bytes)</label>
               <input id="min-bytes" v-model.number="form.min_savings_bytes" class="input" type="number" min="0" />
             </div>
             <div class="field">
-              <label for="max-size">Tamaño máximo (MB)</label>
+              <label for="max-size">Max file size (MB)</label>
               <input id="max-size" v-model.number="form.max_file_size_mb" class="input" type="number" min="1" />
             </div>
           </div>
-          <p class="hint">Una imagen solo entra en la PR si cumple los dos mínimos de ahorro.</p>
+          <p class="hint">An image only goes into the PR if it meets both minimums.</p>
         </div>
       </section>
 
       <section class="group">
         <div class="group-head">
-          <h2>Archivos ignorados</h2>
-          <p class="hint">Patrones glob, uno por línea, que se aplican a todos los repositorios.</p>
+          <h2>Ignored files</h2>
+          <p class="hint">Glob patterns, one per line, applied to every repository.</p>
         </div>
         <div class="fields">
           <textarea
             v-model="form.ignore_globs"
             class="textarea"
             spellcheck="false"
-            aria-label="Patrones ignorados en todos los repositorios"
+            aria-label="Patterns ignored in every repository"
             placeholder="**/node_modules/**&#10;vendor/**&#10;**/*.9.png"
           ></textarea>
         </div>
@@ -225,59 +225,59 @@ const detected = computed(() => {
 
       <section class="group">
         <div class="group-head">
-          <h2>Commits y PRs</h2>
+          <h2>Commits and PRs</h2>
           <p class="hint">
-            git-opt marca sus commits para reconocerlos después y no volver a optimizar lo que ya optimizó.
+            git-opt marks its commits so it can recognize them later and never optimize the same file twice.
           </p>
         </div>
         <div class="fields">
           <div class="fields two">
             <div class="field">
-              <label for="branch">Rama de trabajo</label>
+              <label for="branch">Working branch</label>
               <input id="branch" v-model="form.branch_name" class="input mono" spellcheck="false" />
             </div>
             <div class="field">
-              <label for="title">Título del commit y de la PR</label>
+              <label for="title">Commit and PR title</label>
               <input id="title" v-model="form.commit_title" class="input" />
             </div>
             <div class="field">
-              <label for="author-name">Autor de los commits</label>
+              <label for="author-name">Commit author</label>
               <input
                 id="author-name"
                 v-model="form.commit_author_name"
                 class="input"
-                :placeholder="detected?.name || 'Nombre'"
+                :placeholder="detected?.name || 'Name'"
               />
             </div>
             <div class="field">
-              <label for="author-email">Email del autor</label>
+              <label for="author-email">Author email</label>
               <input
                 id="author-email"
                 v-model="form.commit_author_email"
                 class="input"
                 type="email"
-                :placeholder="detected?.email || 'email@ejemplo.com'"
+                :placeholder="detected?.email || 'email@example.com'"
               />
             </div>
           </div>
           <p class="hint">
-            Déjalos vacíos para usar tu <code>git config</code> y, si no hay, tu cuenta de GitHub.
-            <template v-if="detected">Ahora mismo: {{ detected.name }} &lt;{{ detected.email }}&gt;.</template>
+            Leave empty to use your <code>git config</code> or, failing that, your GitHub account.
+            <template v-if="detected">Currently: {{ detected.name }} &lt;{{ detected.email }}&gt;.</template>
           </p>
           <label class="check">
             <input v-model="form.sign_commits" type="checkbox" />
-            Firmar los commits si tu git config lo pide
+            Sign commits (when your git config asks for it)
           </label>
-          <p class="hint">Desactívalo si el servidor no tiene acceso a tu clave GPG o SSH (por ejemplo, en Docker).</p>
+          <p class="hint">Turn it off if the server cannot reach your GPG or SSH key (in Docker, for example).</p>
         </div>
       </section>
 
       <div v-if="dirty" class="savebar">
-        <span>Hay cambios sin guardar.</span>
+        <span>You have unsaved changes.</span>
         <div class="toolbar">
-          <button type="button" class="btn btn-quiet" @click="discard">Descartar</button>
+          <button type="button" class="btn btn-quiet" @click="discard">Discard</button>
           <button type="submit" class="btn btn-primary" :disabled="saving">
-            {{ saving ? 'Guardando…' : 'Guardar ajustes' }}
+            {{ saving ? 'Saving…' : 'Save settings' }}
           </button>
         </div>
       </div>
@@ -287,21 +287,21 @@ const detected = computed(() => {
       <div class="group-head">
         <h2>GitHub</h2>
         <p class="hint">
-          Las PRs se abren con esta cuenta. Orden de búsqueda: token guardado aquí, <code>GIT_OPT_GITHUB_TOKEN</code> o
-          <code>GITHUB_TOKEN</code>, y la sesión de <code>gh</code>.
+          PRs are opened with this account. Lookup order: the token saved here, <code>GIT_OPT_GITHUB_TOKEN</code> or
+          <code>GITHUB_TOKEN</code>, then the <code>gh</code> session.
         </p>
       </div>
       <div class="fields">
         <p v-if="status?.github.ok">
-          <span class="tag ok">Conectado como @{{ status.github.login }}</span>
+          <span class="tag ok">Connected as @{{ status.github.login }}</span>
           <span v-if="status.github.token_source" class="hint">
-            usando {{ TOKEN_SOURCE[status.github.token_source] }}</span>
+            using {{ TOKEN_SOURCE[status.github.token_source] }}</span>
         </p>
-        <p v-else-if="status" class="error-text">{{ status.github.error || 'Sin token de GitHub.' }}</p>
+        <p v-else-if="status" class="error-text">{{ status.github.error || 'No GitHub token.' }}</p>
 
         <form class="token" @submit.prevent="saveToken(newToken.trim())">
           <div class="field grow">
-            <label for="token">{{ tokenSet ? 'Sustituir el token guardado' : 'Guardar un token' }}</label>
+            <label for="token">{{ tokenSet ? 'Replace the saved token' : 'Save a token' }}</label>
             <input
               id="token"
               v-model="newToken"
@@ -311,7 +311,7 @@ const detected = computed(() => {
               placeholder="github_pat_…"
             />
           </div>
-          <button class="btn btn-primary" type="submit" :disabled="savingToken || !newToken.trim()">Guardar token</button>
+          <button class="btn btn-primary" type="submit" :disabled="savingToken || !newToken.trim()">Save token</button>
           <button
             v-if="tokenSet"
             class="btn btn-danger"
@@ -319,12 +319,12 @@ const detected = computed(() => {
             :disabled="savingToken"
             @click="saveToken(null)"
           >
-            Borrar token guardado
+            Remove saved token
           </button>
         </form>
         <p class="hint">
-          El token no se vuelve a mostrar. Necesita permiso de escritura en contenidos y pull requests de los
-          repositorios, y poder crear forks para las contribuciones.
+          The token is never shown again. It needs write access to repository contents and pull requests, and
+          permission to create forks for contributions.
         </p>
       </div>
     </section>
