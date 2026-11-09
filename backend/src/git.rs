@@ -49,7 +49,6 @@ pub struct Identity {
 /// One blob from `git ls-tree -r -l`.
 #[derive(Debug, Clone)]
 pub struct TreeEntry {
-    pub mode: String,
     pub sha: String,
     pub size: u64,
     pub path: String,
@@ -59,23 +58,15 @@ pub struct TreeEntry {
 pub struct Git {
     dir: PathBuf,
     auth: Option<GitAuth>,
-    /// Extra `-c key=value` pairs prepended to every command.
-    config: Vec<String>,
 }
 
 impl Git {
     pub fn new(dir: impl Into<PathBuf>, auth: Option<GitAuth>) -> Self {
-        Self { dir: dir.into(), auth, config: Vec::new() }
+        Self { dir: dir.into(), auth }
     }
 
     pub fn dir(&self) -> &Path {
         &self.dir
-    }
-
-    /// Adds a `-c key=value` applied to every git invocation of this handle.
-    pub fn with_config(mut self, kv: impl Into<String>) -> Self {
-        self.config.push(kv.into());
-        self
     }
 
     fn command(&self, cwd: &Path) -> Command {
@@ -90,9 +81,6 @@ impl Git {
             .kill_on_drop(true);
         if let Some(auth) = &self.auth {
             cmd.envs(auth.env());
-        }
-        for kv in &self.config {
-            cmd.arg("-c").arg(kv);
         }
         cmd
     }
@@ -191,7 +179,6 @@ impl Git {
                 continue;
             }
             entries.push(TreeEntry {
-                mode: mode.into(),
                 sha: sha.into(),
                 size: size.parse().unwrap_or(0),
                 path: path.into(),

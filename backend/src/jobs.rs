@@ -106,10 +106,6 @@ impl Jobs {
         self.notify.notify_one();
     }
 
-    pub fn running_count(&self) -> usize {
-        self.inner.lock().unwrap().running.len()
-    }
-
     pub fn set_phase(&self, repo_id: i64, full_name: &str, phase: impl Into<String>) {
         let mut inner = self.inner.lock().unwrap();
         let phase = phase.into();
