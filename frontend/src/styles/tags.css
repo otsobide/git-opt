@@ -1,0 +1,59 @@
+/* Status tags: a colored dot plus a short word. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tag::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.tag.ok {
+  color: var(--accent);
+}
+.tag.warn {
+  color: var(--warn);
+}
+.tag.danger {
+  color: var(--danger);
+}
+.tag.merged {
+  color: var(--merged);
+}
+.tag.live::before {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.tag.hollow::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+/* Small boxed label for facts like "fork" or a branch name. */
+.chip {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.chip.fork {
+  border-color: var(--merged);
+  color: var(--merged);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
