@@ -63,13 +63,18 @@ pub fn pr_body(files: &[FileReport]) -> String {
     if files.len() > MAX_PR_ROWS {
         body.push_str(&format!("| …and {} more | | | |\n", files.len() - MAX_PR_ROWS));
     }
-    body.push_str(
-        "\n<details><summary>How</summary>\n\n\
-         - **PNG**: re-compressed with [oxipng](https://github.com/shssoichiro/oxipng) (filters, deflate, lossless color-type reduction).\n\
-         - **JPEG**: `jpegtran -optimize [-progressive] -copy all`: Huffman tables are rebuilt, DCT coefficients and metadata are untouched.\n\
-         - **GIF**: `gifsicle -O3` without `--lossy`.\n\n\
-         </details>\n\n",
-    );
+    body.push_str("\n<details><summary>How</summary>\n\n");
+    let used = |id: &str| files.iter().any(|f| f.optimizer == id);
+    if used("oxipng") {
+        body.push_str("- **PNG**: re-compressed with [oxipng](https://github.com/shssoichiro/oxipng) (filters, deflate, lossless color-type reduction).\n");
+    }
+    if used("jpegtran") {
+        body.push_str("- **JPEG**: `jpegtran -optimize [-progressive] -copy all`: Huffman tables are rebuilt; DCT coefficients and metadata are untouched.\n");
+    }
+    if used("gifsicle") {
+        body.push_str("- **GIF**: `gifsicle -O3`, without `--lossy`.\n");
+    }
+    body.push_str("\n</details>\n\n");
     body.push_str(&format!("---\n<sub>Opened by git-opt, a self-hosted bot. `{BOT_MARKER}`</sub>\n"));
     body
 }
