@@ -163,7 +163,9 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
             <RepoStatusTag :repo="repo" />
             <span v-if="repo.running && repo.phase" class="muted small">{{ repo.phase }}</span>
             <span v-if="repo.mode === 'fork'" class="chip fork">contribución desde fork</span>
-            <PrLink :number="repo.pr_number" :url="repo.pr_url" :state="repo.pr_state" />
+            <span v-if="repo.pr_number" class="small">
+              PR <PrLink :number="repo.pr_number" :url="repo.pr_url" :state="repo.pr_state" />
+            </span>
           </div>
         </div>
         <div class="toolbar">
@@ -310,7 +312,7 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
       <section class="section">
         <div class="section-head">
           <h2>Historial</h2>
-          <span class="muted small">{{ runs.length }} ejecuciones recientes</span>
+          <span v-if="runs.length > 1" class="muted small">últimas {{ runs.length }} ejecuciones</span>
         </div>
         <div v-if="runs.length" class="table-wrap">
           <table class="table">
