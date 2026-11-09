@@ -35,15 +35,17 @@ See [author resolution](how-it-works.md#35-commit). In Docker, mount your `~/.gi
 
 ## Optimization
 
-**A format shows as unavailable**
-The external tool is missing: install `jpegtran` (`libjpeg-turbo` / `libjpeg-turbo-progs`) for JPEG or `gifsicle` for GIF, then save Settings (which re-probes the tools) or restart. The Docker image includes both.
+**GIF shows as unavailable**
+GIF is the only format that needs an external tool: install `gifsicle`, then save Settings (which re-probes the tools) or restart. The Docker image includes it. Every other optimizer is built into the binary.
 
 **An image I expected is not optimized**
 Run a forced check with `RUST_LOG=git_opt=debug` and look for its path. Usual reasons:
 
 - the saving is below the thresholds (1 % and 256 bytes by default);
 - it matches an ignored pattern (global or per repository);
-- it is in Git LFS, is an animated PNG, is a symlink, or exceeds the size limit;
+- it is in Git LFS, is a symlink, or exceeds the size limit;
+- the format cannot be improved without loss: lossy or animated WebP;
+- the file is unusual or damaged: a JPEG that makes libjpeg emit warnings, an icon with gaps or trailing bytes, an SVG that is not UTF-8 or that resvg cannot read;
 - it was in a PR that was closed without merging (use *Forget rejected files*);
 - verification failed or the file could not be decoded; the reason is cached (`blob_cache.detail`) and the file will not be retried with the same settings.
 

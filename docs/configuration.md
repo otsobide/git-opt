@@ -46,8 +46,9 @@ The resolved token is cached for 5 minutes. The Dashboard shows which source is 
 | Optimization → Min savings (bytes) | `min_savings_bytes` | `256` | ≥ 0 | …and at least this many bytes. |
 | Optimization → Max file size (MB) | `max_file_size_mb` | `30` | 1–1024 | Bigger files are skipped. |
 | Optimization → PNG compression effort | `png_level` | `3` | 0–6 | oxipng preset. Higher is smaller and slower. |
+| Optimization → Use Zopfli for PNG | `png_zopfli` | off | | Zopfli instead of libdeflate for PNG and ICO: a few % smaller, many times slower. |
 | Optimization → Strip PNG metadata that doesn't affect rendering | `strip_metadata` | off | | Removes PNG chunks that do not affect rendering (text, time…). Color-related chunks are kept. JPEG metadata is never removed. |
-| Optimization → Formats | `optimizers` | all on | | Per-optimizer switch (`oxipng`, `jpegtran`, `gifsicle`). An optimizer whose tool is not installed is reported as unavailable and skipped. |
+| Optimization → Formats | `optimizers` | all on | | Per-optimizer switch: `oxipng` (PNG/APNG), `mozjpeg` (JPEG), `gifsicle` (GIF), `webp`, `ico` (ICO/CUR), `svg`. Only `gifsicle` is an external tool; if it is not installed GIF is reported as unavailable and skipped. |
 | Ignored files | `ignore_globs` | empty | | Patterns ignored in every repository (see below). |
 | Commits and PRs → Working branch | `branch_name` | `git-opt/optimize-images` | | Branch the bot pushes to. Changing it while a PR is open leaves the old PR alone and opens a new one. |
 | Commits and PRs → Commit and PR title | `commit_title` | `[git-opt] Optimize images` | | Subject of the commit and title of the PR. |
@@ -56,7 +57,7 @@ The resolved token is cached for 5 minutes. The Dashboard shows which source is 
 
 Changing the interval or the jitter reschedules repositories whose next check would otherwise be later than the new interval allows.
 
-Changing `png_level` or `strip_metadata` changes the PNG optimizer's cache key, so PNGs previously found optimal are evaluated again on the next forced or changed check.
+Changing `png_level`, `png_zopfli` or `strip_metadata` changes the PNG (and ICO) optimizer's cache key, so files previously found optimal are evaluated again on the next forced or changed check.
 
 ## Per-repository settings
 

@@ -16,7 +16,7 @@ This page follows a repository from the moment it is added until its pull reques
                        │        ▼                                                                        │
                        │  pipeline:  git fetch ─▶ find candidates ─▶ optimize + verify ─▶ commit ─▶ PR   │
                        └────────┬───────────────────────────────┬─────────────────────────────┬──────────┘
-                                │ system git (your identity)    │ oxipng / jpegtran / gifsicle│ GitHub REST API
+                                │ system git (your identity)    │ built-in optimizers+gifsicle│ GitHub REST API
                                 ▼                               ▼                             ▼ (your token)
                        local clones in $DATA/repos      optimized bytes                pull requests, forks
 ```
@@ -71,7 +71,7 @@ If the default branch's HEAD is the same commit seen last time, the check ends h
 
 | Rule | Why |
 |---|---|
-| An enabled and installed optimizer handles its extension | `.png`, `.jpg/.jpeg/.jpe/.jfif`, `.gif` today |
+| An enabled and installed optimizer handles its extension | `.png`, `.jpg/.jpeg/.jpe/.jfif`, `.gif`, `.webp`, `.ico/.cur`, `.svg` |
 | It does not match an ignored pattern (global or per repository) | you decide what the bot never touches |
 | It is a regular file (not a symlink or submodule), not empty and not bigger than the size limit (30 MB) | safety and speed |
 | Its blob was **not written by a bot commit** in the history | see below |
@@ -108,14 +108,18 @@ The bot checks out a fresh local branch (`git-opt/optimize-images` by default) a
 1. If the cache says this exact blob was optimized before (for example in a PR that is still open) and the result is still in the local clone, the result is reused without recomputing.
 2. Otherwise the optimizer produces a candidate output.
 3. The output is kept only if it is smaller by at least **1 %** and **256 bytes** (configurable). Otherwise the blob is cached as *optimal*.
-4. The original and the output are **decoded and compared pixel by pixel**. Any difference, or any decoding problem, discards the output and caches the blob as *failed* with the reason.
+4. The optimizer **proves** the output is equivalent: both versions are decoded and compared pixel by pixel (plus the format-specific checks in the table below). Any difference, or anything that cannot be checked, discards the output and caches the blob as *failed* with the reason.
 5. The verified output overwrites the file in the working tree.
 
 | Format | Optimizer | Verification |
 |---|---|---|
-| PNG | oxipng (built in): filters, deflate, lossless bit-depth/color-type/palette reductions. Metadata kept unless *strip metadata* is on (then only chunks that don't affect rendering are removed). Transparent pixels keep their RGB values. APNG is skipped. | same width, height and RGBA values (compared in 16-bit if the color type changed) |
-| JPEG | `jpegtran -optimize -copy all`, and the `-progressive` variant; the smaller wins. DCT coefficients and all metadata (EXIF orientation, ICC profile) are untouched. | same decoded pixels |
+| PNG | oxipng (built in): filters, deflate (libdeflate, or Zopfli when enabled), lossless bit-depth/color-type/palette reductions. Metadata kept unless *strip metadata* is on (then only chunks that don't affect rendering are removed). Transparent pixels keep their RGB values. | same width, height and RGBA values (compared in 16-bit if the color type changed) |
+| APNG | oxipng, which also recompresses every animation frame | the above for the default image, plus the same animation control (frame and loop count) and identical composited frames and delays |
+| JPEG | mozjpeg (built in): a lossless transcode of the DCT coefficients (`jpegtran -copy all -optimize`), progressive with mozjpeg's scan search and baseline; the smaller wins. libjpeg warnings (damaged data) abort the transcode. | same decoded pixels, and every APPn/COM segment (EXIF, ICC, XMP, comments) byte for byte and in order; the JFIF header may be added or moved first, as the standard requires |
 | GIF | `gifsicle --optimize=3` (never `--lossy`) | same number of frames, same composited RGBA for every frame, same delays |
+| WebP | libwebp (built in): only lossless (VP8L) files, re-encoded with `-lossless -z 9 -exact`; the new bitstream replaces the old one inside the original container. Lossy and animated WebP are skipped. | same pixels decoded by `image` (a decoder independent of libwebp), and every other chunk (VP8X, ICCP, EXIF, XMP…) byte for byte |
+| ICO, CUR | oxipng on each embedded PNG, without changing its pixel format (some Windows loaders only accept 32-bit RGBA PNGs). BMP images are copied. Icons with gaps, overlaps or trailing data are skipped. | same header and directory fields, same IHDR and pixels for each PNG, identical BMP bytes |
+| SVG | built-in cleanup: removes comments (except legal ones: `<!--! … -->` or mentioning license/copyright/SPDX), elements and attributes in editor namespaces (Inkscape, Sodipodi, Illustrator, Sketch, Figma, Serif, Visio…) with their declarations, whitespace-only text between tags (never inside `text`, `tspan`, `style`, `script`, `title`, `desc`, `metadata`, `foreignObject` or under `xml:space="preserve"`) and redundant whitespace inside tags. Nothing else is touched. | (1) roxmltree, a different XML parser, sees the same tree once those removals are applied to the original; (2) resvg renders both to identical pixels |
 
 If nothing was optimized the check ends as **up to date**.
 

@@ -60,7 +60,7 @@ Body: a full `Settings` object (missing fields take their defaults). Values are 
 {
   "poll_interval_minutes": 20, "poll_jitter_minutes": 20, "max_concurrent_jobs": 2,
   "source_sync_interval_minutes": 360, "min_savings_percent": 1.0, "min_savings_bytes": 256,
-  "max_file_size_mb": 30, "png_level": 3, "strip_metadata": false,
+  "max_file_size_mb": 30, "png_level": 3, "png_zopfli": false, "strip_metadata": false,
   "optimizers": { "gifsicle": false }, "ignore_globs": "docs/\n*.min.png",
   "branch_name": "git-opt/optimize-images", "commit_title": "[git-opt] Optimize images",
   "commit_author_name": "", "commit_author_email": "", "sign_commits": true

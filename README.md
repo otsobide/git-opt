@@ -6,7 +6,7 @@ You point it at repositories (yours, your organization's, or third-party project
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-- **Lossless, verified.** PNG with oxipng, JPEG with `jpegtran`, GIF with `gifsicle`. Every result is decoded and compared pixel by pixel with the original; anything that differs is thrown away.
+- **Lossless, verified.** PNG and APNG, JPEG, GIF, WebP, ICO/CUR and SVG. Every result is proven equivalent before it is kept: decoded and compared pixel by pixel (and, for SVG, XML tree and rendering compared); anything that differs is thrown away.
 - **Runs on its own.** Each repository is checked every 20 minutes plus a random delay of up to 20 minutes, in the background, a few at a time.
 - **Remembers what it did, in git.** Its commits carry a marker, so it recognizes already-optimized images from the commit history, whether its PR was merged, rebased or squashed, and even after a reinstall.
 - **Acts as you.** Commits use your `git config` identity; pushes and PRs use your GitHub token. No bot account, no GitHub App.
@@ -52,13 +52,18 @@ The full walkthrough, including scheduling, caching, identity and the security m
 
 ### What "lossless" means here
 
-| Format | Tool | What changes | What never changes |
-|---|---|---|---|
-| PNG | [oxipng](https://github.com/shssoichiro/oxipng) (built in) | filters, deflate, lossless color-type/bit-depth/palette reduction | pixels (including the color of transparent pixels); metadata unless you opt in to stripping non-rendering chunks |
-| JPEG | `jpegtran -optimize [-progressive] -copy all` | Huffman tables, progressive scans when smaller | DCT coefficients, EXIF (orientation), ICC profile |
-| GIF | `gifsicle -O3` (never `--lossy`) | frame encoding | every composited frame and its delay |
+| Format | Tool | What changes | What never changes | How it is proven |
+|---|---|---|---|---|
+| PNG, APNG | [oxipng](https://github.com/shssoichiro/oxipng) (built in), optional Zopfli | filters, deflate, lossless color-type/bit-depth/palette reduction; every animation frame | pixels (including the color of transparent pixels), frames, delays, loop count; metadata unless you opt in to stripping non-rendering chunks | decoded RGBA of the image and of every composited frame |
+| JPEG | [mozjpeg](https://github.com/mozilla/mozjpeg) (built in), a lossless transcode like `jpegtran -copy all -optimize -progressive` | Huffman tables, progressive scan script (or baseline when smaller) | DCT coefficients; every APPn/COM segment: EXIF (orientation), ICC, XMP, comments | decoded pixels + metadata segments byte for byte |
+| GIF | `gifsicle -O3` (never `--lossy`) | frame encoding | every composited frame and its delay | every composited frame and delay |
+| WebP | libwebp (built in), `-lossless -z 9 -exact`, lossless files only | the lossless bitstream | pixels (including under transparency); ICC, EXIF, XMP and every other chunk | decoded pixels (independent decoder) + chunks byte for byte |
+| ICO, CUR | oxipng on the embedded PNG images | PNG compression | pixel format of each image, BMP images, the icon directory | per-image pixels, IHDR and directory fields |
+| SVG | built-in cleanup | comments (license notices kept), editor metadata (Inkscape, Illustrator, Sketch, Figma…), whitespace between tags | paths, numbers, ids, classes, styles, every attribute value, element order, text, DOCTYPE | XML tree (independent parser) + pixels rendered by resvg |
 
-A result is kept only if it decodes to exactly the same pixels **and** saves at least 1% and 256 bytes (configurable). Animated PNGs are skipped.
+A result is kept only if it is proven equivalent **and** saves at least 1% and 256 bytes (configurable).
+
+Deliberately never done: lossy re-encoding of any kind, converting between formats (it would rename files and break references), touching lossy or animated WebP, damaged JPEGs, AVIF/HEIC/JPEG XL, BMP or TIFF.
 
 ## Screenshots
 
@@ -72,7 +77,7 @@ Light, dark or system theme, switchable from the sidebar.
 
 ## Quick start
 
-With Docker (bundles git, jpegtran and gifsicle):
+With Docker (bundles git and gifsicle; every other optimizer is built in):
 
 ```bash
 git clone https://github.com/otsobide/git-opt.git && cd git-opt
@@ -81,7 +86,7 @@ export GIT_OPT_ADMIN_TOKEN=$(openssl rand -hex 24)   # the UI will ask for it
 docker compose up -d --build                          # → http://localhost:8484
 ```
 
-From source (Rust ≥ 1.88, Node ≥ 20, git; plus jpegtran and gifsicle for JPEG/GIF):
+From source (Rust ≥ 1.88 with a C compiler, Node ≥ 20, git; plus `gifsicle` for GIF):
 
 ```bash
 (cd frontend && npm ci && npm run build)
