@@ -100,7 +100,7 @@ fn percent(before: u64, after: u64) -> String {
     if before == 0 {
         return "0%".into();
     }
-    format!("-{:.2}%", (before.saturating_sub(after)) as f64 * 100.0 / before as f64)
+    format!("{:.2}%", (before.saturating_sub(after)) as f64 * 100.0 / before as f64)
 }
 
 #[cfg(test)]
