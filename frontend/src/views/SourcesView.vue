@@ -48,7 +48,7 @@ async function add() {
   try {
     const name = form.kind === 'me' ? '' : form.name.trim().replace(/^@/, '')
     await api.addSource({ ...form, name })
-    toast.ok(`Importando ${describe({ kind: form.kind, name })}. Los repositorios irán apareciendo en la lista.`)
+    toast.ok(`Importing ${describe({ kind: form.kind, name })}. Repositories will appear in the list shortly.`)
     form.name = ''
     await refresh()
   } catch (e) {
@@ -60,17 +60,17 @@ async function add() {
 
 // ------------------------------------------------------------------- list
 
-const KIND: Record<SourceKind, string> = { user: 'Usuario', org: 'Organización', me: 'Mis repositorios' }
+const KIND: Record<SourceKind, string> = { user: 'User', org: 'Organization', me: 'My repositories' }
 
 function describe(s: Pick<Source, 'kind' | 'name'>) {
-  if (s.kind === 'me') return 'todos los repositorios a los que tienes acceso'
-  return s.kind === 'org' ? `la organización ${s.name}` : `los repositorios de ${s.name}`
+  if (s.kind === 'me') return 'every repository you can access'
+  return s.kind === 'org' ? `the ${s.name} organization` : `the repositories of ${s.name}`
 }
 
 const toggle = (s: Source, key: 'include_forks' | 'include_archived' | 'auto_sync') =>
   run(`${key}-${s.id}`, () => api.patchSource(s.id, { [key]: !s[key] }))
 
-const sync = (s: Source) => run(`sync-${s.id}`, () => api.syncSource(s.id), 'Sincronización en cola')
+const sync = (s: Source) => run(`sync-${s.id}`, () => api.syncSource(s.id), 'Sync queued')
 
 const armed = ref<number | null>(null)
 const remove = (s: Source, deleteRepos: boolean) => {
@@ -78,7 +78,7 @@ const remove = (s: Source, deleteRepos: boolean) => {
   return run(
     `delete-${s.id}`,
     () => api.deleteSource(s.id, deleteRepos),
-    deleteRepos ? 'Fuente y repositorios eliminados' : 'Fuente eliminada; sus repositorios siguen en la lista',
+    deleteRepos ? 'Source and its repositories removed' : 'Source removed; its repositories stay on the list',
   )
 }
 </script>
@@ -87,61 +87,62 @@ const remove = (s: Source, deleteRepos: boolean) => {
   <div class="page">
     <header class="page-head">
       <div>
-        <h1>Fuentes</h1>
+        <h1>Sources</h1>
         <p class="lede">
-          Una fuente es una cuenta de GitHub cuyos repositorios se vigilan todos. git-opt la vuelve a listar
-          <template v-if="syncEvery">cada {{ minutes(syncEvery) }}</template>
-          <template v-else>periódicamente</template>
-          para añadir los repositorios nuevos.
+          A source is a GitHub account whose repositories are all watched. git-opt lists it again
+          <template v-if="syncEvery">every {{ minutes(syncEvery) }}</template>
+          <template v-else>periodically</template>
+          to pick up new repositories.
         </p>
       </div>
     </header>
 
     <form class="panel add" @submit.prevent="add">
       <fieldset class="field">
-        <legend class="field-label">Qué importar</legend>
+        <legend class="field-label">What to import</legend>
         <div class="segmented">
-          <label><input v-model="form.kind" type="radio" value="user" /> Usuario</label>
-          <label><input v-model="form.kind" type="radio" value="org" /> Organización</label>
-          <label><input v-model="form.kind" type="radio" value="me" /> Todos mis repositorios</label>
+          <label><input v-model="form.kind" type="radio" value="user" /> User</label>
+          <label><input v-model="form.kind" type="radio" value="org" /> Organization</label>
+          <label><input v-model="form.kind" type="radio" value="me" /> All my repositories</label>
         </div>
       </fieldset>
 
       <div v-if="form.kind !== 'me'" class="field">
-        <label for="source-name">{{ form.kind === 'org' ? 'Organización' : 'Usuario' }} de GitHub</label>
+        <label for="source-name">GitHub {{ form.kind === 'org' ? 'organization' : 'user' }}</label>
         <input
           id="source-name"
           v-model="form.name"
           class="input"
-          :placeholder="form.kind === 'org' ? 'mi-empresa' : 'octocat'"
+          :placeholder="form.kind === 'org' ? 'my-company' : 'octocat'"
           autocomplete="off"
           spellcheck="false"
         />
       </div>
       <p v-else class="small muted me-hint">
-        <template v-if="hasMe">Ya está añadida.</template>
+        <template v-if="hasMe">Already added.</template>
         <template v-else>
-          Todos los repositorios a los que tiene acceso
+          Every repository
           <strong v-if="status?.github.login">@{{ status.github.login }}</strong>
-          <template v-else>el token configurado</template>: propios, de colaboración y de tus organizaciones.
+          <template v-else>the configured token</template>
+          can access: owned, collaborations and your organizations.
         </template>
       </p>
 
       <div class="options">
-        <label class="check"><input v-model="form.include_forks" type="checkbox" /> Incluir forks</label>
+        <label class="check"><input v-model="form.include_forks" type="checkbox" /> Include forks</label>
         <label class="check">
-          <input v-model="form.include_archived" type="checkbox" /> Incluir archivados
+          <input v-model="form.include_archived" type="checkbox" /> Include archived
         </label>
-        <label class="check"><input v-model="form.auto_sync" type="checkbox" /> Añadir repositorios nuevos automáticamente</label>
+        <label class="check"><input v-model="form.auto_sync" type="checkbox" /> Add new repositories automatically</label>
       </div>
       <p class="hint">
-        Los repositorios donde no puedes escribir se tratarán como contribuciones: git-opt hará un fork y abrirá la PR
-        desde él. Los archivados no aceptan PRs.
+        Repositories you cannot push to are treated as contributions: git-opt forks them and opens the PR from the
+        fork. Archived repositories do not accept PRs.
       </p>
 
       <div>
         <button class="btn btn-primary" type="submit" :disabled="adding || !canAdd">
-          {{ adding ? 'Importando…' : 'Importar repositorios' }}
+          {{ adding ? 'Importing…' : 'Import repositories' }}
         </button>
       </div>
     </form>
@@ -152,25 +153,25 @@ const remove = (s: Source, deleteRepos: boolean) => {
       <table class="table">
         <thead>
           <tr>
-            <th>Fuente</th>
-            <th class="num">Repositorios</th>
-            <th>Última sincronización</th>
-            <th>Opciones</th>
-            <th><span class="sr">Acciones</span></th>
+            <th>Source</th>
+            <th class="num">Repositories</th>
+            <th>Last sync</th>
+            <th>Options</th>
+            <th><span class="sr">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in sources" :key="s.id">
             <td>
-              <strong>{{ s.kind === 'me' ? 'Mis repositorios' : s.name }}</strong>
-              <div class="hint">{{ s.kind === 'me' ? 'Todo lo accesible con el token' : KIND[s.kind] }}</div>
+              <strong>{{ s.kind === 'me' ? 'My repositories' : s.name }}</strong>
+              <div class="hint">{{ s.kind === 'me' ? 'Everything the token can access' : KIND[s.kind] }}</div>
             </td>
             <td class="num">
               <RouterLink to="/repos">{{ s.repo_count }}</RouterLink>
             </td>
             <td>
               <span :title="formatDate(s.last_synced_at)">
-                {{ s.last_synced_at ? formatRelative(s.last_synced_at, now) : 'pendiente' }}
+                {{ s.last_synced_at ? formatRelative(s.last_synced_at, now) : 'pending' }}
               </span>
               <div v-if="s.last_error" class="error-text">{{ s.last_error }}</div>
             </td>
@@ -182,23 +183,23 @@ const remove = (s: Source, deleteRepos: boolean) => {
                 </label>
                 <label class="check small">
                   <input type="checkbox" :checked="s.include_archived" :disabled="busy !== null" @change="toggle(s, 'include_archived')" />
-                  Archivados
+                  Archived
                 </label>
                 <label class="check small">
                   <input type="checkbox" :checked="s.auto_sync" :disabled="busy !== null" @change="toggle(s, 'auto_sync')" />
-                  Automática
+                  Auto sync
                 </label>
               </div>
             </td>
             <td class="actions">
-              <button type="button" class="btn btn-sm" :disabled="busy !== null" @click="sync(s)">Sincronizar</button>
-              <RowMenu :label="`Más acciones para ${s.name || 'mis repositorios'}`">
-                <button type="button" @click="remove(s, false)">Eliminar fuente y conservar repositorios</button>
+              <button type="button" class="btn btn-sm" :disabled="busy !== null" @click="sync(s)">Sync now</button>
+              <RowMenu :label="`More actions for ${s.name || 'my repositories'}`">
+                <button type="button" @click="remove(s, false)">Remove source, keep repositories</button>
                 <button v-if="armed === s.id" type="button" class="danger" @click="remove(s, true)">
-                  ¿Seguro? Eliminar {{ s.repo_count }} repositorios
+                  Sure? Remove {{ s.repo_count }} repositories
                 </button>
                 <button v-else type="button" class="danger" @click.stop="armed = s.id">
-                  Eliminar fuente y sus repositorios
+                  Remove source and its repositories
                 </button>
               </RowMenu>
             </td>
@@ -207,7 +208,7 @@ const remove = (s: Source, deleteRepos: boolean) => {
       </table>
     </div>
     <p v-else-if="!loading" class="empty panel">
-      Sin fuentes. Importa un usuario, una organización o todos tus repositorios de una vez.
+      No sources. Import a user, an organization or all your repositories at once.
     </p>
   </div>
 </template>
