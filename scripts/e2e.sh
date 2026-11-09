@@ -42,7 +42,12 @@ git add -A && commit -m "Initial"
 git clone -q --bare . ../demo.git && git clone -q --bare . ../third.git && git init -q --bare ../fork.git
 
 step "start mock GitHub and git-opt"
-python3 -I "$ROOT/scripts/mock-github.py" "$API_PORT" "$WORK/demo.git" "$WORK/third.git" "$WORK/fork.git" &
+cat >"$WORK/github.json" <<JSON
+{ "token": "fake-token", "user": { "id": 42, "login": "jdev", "name": "J Dev" },
+  "repos": { "octo/demo": { "push": true, "clone": "$WORK/demo.git" },
+             "other/thirdparty": { "push": false, "clone": "$WORK/third.git", "fork_clone": "$WORK/fork.git" } } }
+JSON
+python3 -I "$ROOT/scripts/mock-github.py" "$API_PORT" "$WORK/github.json" &
 PIDS+=($!)
 GIT_OPT_BIND=127.0.0.1:$PORT GIT_OPT_DATA_DIR="$WORK/data" GIT_OPT_GITHUB_API=http://127.0.0.1:$API_PORT \
   GITHUB_TOKEN=fake-token GIT_OPT_STATIC_DIR=/nonexistent "$ROOT/target/debug/git-opt" >"$WORK/server.log" 2>&1 &
