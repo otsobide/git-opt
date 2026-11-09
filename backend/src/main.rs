@@ -1,7 +1,9 @@
+mod app;
 mod config;
 mod db;
 mod git;
 mod github;
+mod jobs;
 mod optimizers;
 mod report;
 mod models;
