@@ -104,7 +104,8 @@ impl Git {
             .with_context(|| format!("git {} timed out", args.first().unwrap_or(&"")))??;
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
-            bail!("git {} failed: {}", args.join(" "), stderr.trim());
+            tracing::debug!(args = %args.join(" "), stderr = %stderr.trim(), "git failed");
+            bail!("git {} failed: {}", subcommand(args), stderr.trim());
         }
         Ok(out.stdout)
     }
@@ -319,6 +320,21 @@ impl Git {
     }
 }
 
+/// The git subcommand in `args`, skipping global `-c key=value` options.
+fn subcommand<'a>(args: &[&'a str]) -> &'a str {
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match *arg {
+            "-c" => {
+                it.next();
+            }
+            a if a.starts_with('-') => {}
+            a => return a,
+        }
+    }
+    "command"
+}
+
 /// `git --version`, or an error if git is not installed.
 pub async fn version() -> Result<String> {
     let out = Git::new(std::env::temp_dir(), None)
@@ -332,4 +348,22 @@ pub fn url_prefix(url: &str) -> Option<String> {
     let rest = url.strip_prefix("https://")?;
     let host = rest.split('/').next()?;
     Some(format!("https://{host}/"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_the_subcommand() {
+        assert_eq!(subcommand(&["clone", "--quiet", "url"]), "clone");
+        assert_eq!(subcommand(&["-c", "user.name=x", "-c", "core.hooksPath=/dev/null", "commit", "-q"]), "commit");
+        assert_eq!(subcommand(&["--version"]), "command");
+    }
+
+    #[test]
+    fn derives_the_auth_url_prefix() {
+        assert_eq!(url_prefix("https://github.com/o/r.git").as_deref(), Some("https://github.com/"));
+        assert_eq!(url_prefix("file:///tmp/r.git"), None);
+    }
 }
