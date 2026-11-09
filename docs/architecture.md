@@ -1,161 +1,212 @@
 # Architecture
 
-git-opt is one Rust binary (tokio + axum + sqlx/SQLite) that also serves the built Vue UI. This page describes how the code is organized; [how-it-works.md](how-it-works.md) describes the behavior.
+git-opt follows a **hexagonal architecture** (ports and adapters). The core (what a repository, a run or an optimization is, and what the bot does with them) knows nothing about SQLite, git, GitHub, HTTP or image libraries. Those live in adapters that implement the core's **ports** (Rust traits), and a small composition root plugs them together. Replacing a dependency means writing another adapter; nothing in the core changes.
 
-## Repository layout
+[how-it-works.md](how-it-works.md) describes the behavior; this page describes how the code is organized.
 
-```
-.
-├── backend/                 Rust crate `git-opt` (the only workspace member)
-│   ├── migrations/          SQLite schema (sqlx migrations, embedded in the binary)
-│   └── src/
-│       ├── main.rs          startup and HTTP server
-│       ├── app.rs           shared state (`App`)
-│       ├── config.rs        environment variables
-│       ├── settings.rs      runtime settings (stored in the DB)
-│       ├── models.rs        rows and API payloads
-│       ├── db.rs            every SQL query
-│       ├── api.rs           `/api/*` handlers and admin-token middleware
-│       ├── jobs.rs          in-memory job queue and live progress
-│       ├── scheduler.rs     ticker + dispatcher
-│       ├── pipeline.rs      per-repository work
-│       ├── git.rs           system `git` wrapper
-│       ├── github.rs        GitHub REST client and token resolution
-│       ├── report.rs        commit message and PR body
-│       └── optimizers/      `Optimizer` trait, registry, implementations, verification
-├── frontend/                Vue 3 + Vite + TypeScript UI (built into frontend/dist)
-├── scripts/                 e2e test, fake GitHub API, screenshot generator
-├── contrib/                 systemd user unit
-├── docs/                    this documentation
-├── Dockerfile               single image: UI build → Rust build → Debian runtime
-└── docker-compose.yml
-```
-
-## Runtime components
+## Layers and crates
 
 ```
-main.rs
- ├── Config::from_env()
- ├── Db::open()                → runs migrations
- ├── GitHub::new()             → HTTP client, token cache
- ├── optimizers::Registry::new → probes external tools once
- ├── App { config, db, github, optimizers, jobs }   (Arc, shared by everything)
- ├── scheduler::spawn(app)
- │     ├── ticker      every 15 s: due repos → Job::Check, due sources → Job::SyncSource
- │     └── dispatcher  pops jobs while running < max_concurrent_jobs, one tokio task each
- └── axum::serve(api::router(app) + ServeDir(static UI, SPA fallback))
+                         ┌──────────────────────────── driving side ───────────────────────────┐
+                         │  adapters/http  (axum JSON API + static UI, DTOs)                    │
+                         └───────────────────────────────┬─────────────────────────────────────┘
+                                                         │ calls use cases
+┌────────────────────────────────────────────────────────▼────────────────────────────────────────────────────────┐
+│ application   use cases (check, publish, add/remove repos, sources, settings, status), job queue, scheduler,    │
+│               strategies: delivery (direct / via fork), author chain                                             │
+│ ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ domain      value objects · entities · policies (attempt, report, poll policy, ignore rules) · PORTS (traits) │ │
+│ └─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
+└───────┬───────────────────┬────────────────────┬──────────────────────┬─────────────────────────────────────────┘
+        │ RepositoryStore…  │ VersionControl     │ CodeForge            │ FormatStrategy
+┌───────▼────────┐ ┌────────▼────────┐ ┌─────────▼─────────┐ ┌──────────▼─────────────────────────────────────────────┐
+│adapters/sqlite │ │adapters/git-cli │ │adapters/github    │ │codecs: oxipng · mozjpeg · gifsicle · libwebp · ICO ·    │
+│ sqlx, SQLite   │ │ system git      │ │ REST + token chain│ │        ICNS · SVG (resvg) · SVGZ   (one feature each)   │
+└────────────────┘ └─────────────────┘ └───────────────────┘ └────────────────────────────────────────────────────────┘
+                                         driven side
+server: composition root (reads env config, builds every adapter, injects them into the application, starts everything)
 ```
 
-### `jobs.rs`: the queue
+| Crate | Package | Depends on | Role |
+|---|---|---|---|
+| `crates/domain` | `git-opt-domain` | nothing but small pure libraries (`chrono`, `globset`, `thiserror`, `async-trait`) | value objects, entities, policies, **ports** |
+| `crates/application` | `git-opt-application` | domain only | use cases, job queue, scheduler, application strategies |
+| `crates/codecs` | `git-opt-codecs` | domain + image libraries | one `FormatStrategy` per format, each behind a Cargo feature |
+| `crates/adapters/sqlite` | `git-opt-sqlite` | domain + sqlx | every persistence port; owns the migrations |
+| `crates/adapters/git-cli` | `git-opt-git-cli` | domain | `VersionControl` with the system `git` |
+| `crates/adapters/github` | `git-opt-github` | domain + reqwest | `CodeForge` and the token source chain |
+| `crates/adapters/http` | `git-opt-http` | application + axum | JSON API and static UI (driving adapter) |
+| `crates/server` | `git-opt` (binary `git-opt`) | everything | composition root |
 
-A `Mutex`-protected structure with:
+**The dependency rule:** arrows only point inwards. The domain depends on no other crate of the project; the application depends only on the domain (its tests use real adapters as dev-dependencies); adapters depend on the domain (and the HTTP adapter on the application); only `server` sees everything. Cargo enforces this: a use case cannot call `sqlx` or `git` because the application crate does not depend on them.
 
-- `queue: VecDeque<Job>`: pending work. Scheduled checks and source syncs go to the back; manual checks and publishes go to the front.
-- `queued` and `running`: sets of `JobKey` (`Repo(id)` or `Source(id)`). A key can be queued once and running once; `next()` skips jobs whose key is already running, so two jobs never touch the same clone concurrently. Re-requesting a queued repository manually upgrades the queued job (for example to a forced check) instead of adding another.
-- `progress: HashMap<repo_id, RunningJob>`: the current phase string shown in the UI.
-- a `tokio::sync::Notify` that wakes the dispatcher when something is queued or finishes.
+## Domain (`crates/domain`)
 
-Each job runs inside its own spawned task, so a panic is caught and the key is always released.
+### Value objects (`values/`)
 
-### `pipeline.rs`: the work
+Small immutable types that are **valid by construction**: if you hold one, it is valid. They replace strings and integers everywhere in the core.
 
-| Function | Job |
+| Value object | Guarantees |
 |---|---|
-| `add_repo` | Resolve `owner/name`, decide the mode from permissions, insert. |
-| `sync_source` | List a user/org/"me" and insert new repositories. |
-| `check` → `run_check` | The full check: metadata, PR state, fetch, candidates, optimize, commit, publish. Records the run and schedules the next check. |
-| `publish` → `run_publish` | Push a commit awaiting approval and open the PR. |
-| `resolve_identity` | Commit author: settings → git config → GitHub account. |
-| `next_check_at` | `now + interval + random(0..=jitter)`. |
+| `RepoSlug` (`OwnerName` + `RepoName`) | parses `owner/name`, HTTPS and SSH URLs; only valid name characters |
+| `CommitSha`, `BlobId` | 40 (SHA-1) or 64 (SHA-256) lowercase hex characters |
+| `BranchName` | `git check-ref-format` rules |
+| `RepoPath` | relative, no `..`/empty segments, not inside `.git`; knows its extension |
+| `CloneUrl` | known scheme, no whitespace; knows its HTTPS credential scope |
+| `ByteSize`, `Savings`, `SavingsThreshold` | sizes with binary-unit display; percent saved; "is this gain worth a change?" |
+| `FileFormat` | the formats git-opt handles, from extension or media type |
+| `PollPolicy` | interval (1 min–7 days) + jitter (0–24 h); computes the next check |
+| `IgnoreRules`, `IgnoreMatcher` | compiled `.gitignore`-like patterns |
+| `Identity` | a commit author (name + email) |
+| `AccessToken` | a secret whose `Debug`/`Display` print `***` |
+| `OptimizerId`, `Profile` | strategy slug; cache key of a strategy's options |
+| `RepoId`, `SourceId`, `RunId`, `PrNumber` | typed ids |
 
-CPU-heavy work (oxipng, mozjpeg, libwebp, SVG cleanup, decoding and rendering for verification) runs in `spawn_blocking`; the one external tool (gifsicle) runs as an async child process with a timeout.
+### Entities and enums (`model/`)
 
-### `git.rs`
+`Repository`, `Source`, `Run` (+ `RunOutcome`, `FileChange`), `Settings` (+ `CodecOptions`, the subset strategies see), `BlobVerdict`. States are enums with stable names (`RepoStatus`, `RunStatus`, `PrState`, `RunTrigger`, `RepoMode`, `SourceKind`), never free text.
 
-Every `git` invocation goes through `Git::exec`, which sets `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`, a timeout (10 min local, 30 min network), `kill_on_drop`, and, when a token is available, the authentication header through `GIT_CONFIG_COUNT/KEY/VALUE`. Errors include git's stderr.
+### Policies
 
-### `github.rs`
+- `ports::attempt`: the only way a file is optimized. It is a template method around a strategy: optimize → keep only if the gain passes the `SavingsThreshold` → require the strategy's proof of equivalence → `Outcome::{Optimized, Optimal, Failed}`.
+- `report`: the commit message and pull request body, and `BOT_MARKER`, the trailer that lets the bot recognize its own work in any history.
+- `PollPolicy::next_check`, `IgnoreMatcher`, `Settings::sanitized`, `BlobVerdict::skips_file`.
 
-A small typed client over `reqwest` (rustls): `user`, `repo`, `list_repos` (follows `Link` pagination), `fork` (waits until ready), `pull`, `find_open_pull`, `create_pull`, `update_pull`. Errors carry GitHub's message plus a hint for 401/403/404. The token and the `/user` response are cached for 5 minutes; saving a token in the UI invalidates both.
+### Ports (`ports/`)
 
-### `optimizers/`
+| Port | Implemented by | Purpose |
+|---|---|---|
+| `FormatStrategy` | `codecs` | optimize one family of formats and prove equivalence |
+| `VersionControl` + `Workspace` | `adapters/git-cli` | the bot's working copies: clone, fetch, tree, marked blobs, commit, push |
+| `CodeForge` | `adapters/github` | account, repositories, forks, pull requests, credentials |
+| `RepositoryStore`, `SourceStore`, `RunStore`, `SettingsStore`, `SecretStore`, `VerdictCache`, `RejectionStore` | `adapters/sqlite` | persistence, shaped by the use cases (targeted updates, so a background check never overwrites what the user changed meanwhile) |
+| `Clock`, `Random` | `server` (`system.rs`) | time and jitter, so scheduling is testable |
 
-```rust
-#[async_trait]
-pub trait Optimizer: Send + Sync {
-    fn id(&self) -> &'static str;              // "oxipng"
-    fn label(&self) -> &'static str;           // "PNG and APNG (oxipng)"
-    fn category(&self) -> &'static str;        // "image"
-    fn extensions(&self) -> &'static [&'static str];
-    fn enabled_by_default(&self) -> bool { true }
-    fn profile(&self, settings: &Settings) -> String;   // cache key part
-    async fn probe(&self) -> Result<String, String>;    // available here?
-    async fn optimize(&self, input: Arc<Vec<u8>>, settings: &Settings) -> Result<Vec<u8>>;
-    async fn verify(&self, original: Arc<Vec<u8>>, candidate: Arc<Vec<u8>>) -> Result<()>;
-}
+## Application (`crates/application`)
+
+`Services` holds the injected `Ports` and the `StrategyCatalog`; each use case is a method on it, one module per area:
+
+| Module | Use cases |
+|---|---|
+| `use_cases/check.rs` | `check_repository`: refresh PR state, fetch, find candidates, optimize, commit, deliver |
+| `use_cases/publish.rs` | `publish_pending`: deliver a commit that was waiting for approval |
+| `use_cases/repositories.rs` | add (with mode selection), update, remove, request check/publish, forget rejections |
+| `use_cases/sources.rs` | add/update/remove sources, `sync_source` |
+| `use_cases/settings.rs` | update settings (rescheduling repositories), save/validate the token |
+| `use_cases/runs.rs`, `status.rs` | queries for the activity log and the dashboard |
+
+Supporting pieces:
+
+- `catalog.rs`: the injected format strategies with their availability (probed at start and after settings change); picks the active ones and provides each strategy's explanation for the PR body.
+- `jobs.rs`: the in-memory queue. A repository or source is queued at most once and never processed by two jobs at once; manual requests jump the queue; it also holds each running job's phase for the UI.
+- `scheduler.rs`: a 15-second ticker that queues due checks and source syncs, and a dispatcher that runs up to `max_concurrent_jobs` jobs (re-read on every loop) in their own tasks so a panic cannot leave a repository marked busy.
+- `error.rs`: `AppError::{NotFound, Conflict, Invalid, Internal}`, which the HTTP adapter maps to 404/409/400/500.
+
+### Strategies
+
+| Strategy | Where | Chosen by |
+|---|---|---|
+| `FormatStrategy` (oxipng, mozjpeg, gifsicle, libwebp, ICO, ICNS, SVG, SVGZ) | `codecs`, through the catalog | the file's `FileFormat` |
+| `DeliveryStrategy` (`Direct`, `ViaFork`) | `application/delivery.rs` | the repository's `RepoMode` |
+| Author sources (settings → VCS config → forge account) | `application/authorship.rs` | first that answers |
+| Token sources (saved → environment → `gh` CLI) | `adapters/github/token.rs` | first that answers |
+
+Composite strategies receive their collaborators by injection: the SVG strategy gets the raster strategies (to optimize embedded images), SVGZ gets the SVG strategy. Nothing in the codecs crate names a concrete library from another module.
+
+## Adapters
+
+### `codecs`
+
+Each strategy is a module behind a Cargo feature (`png`, `jpeg`, `gif`, `webp`, `ico`, `icns`, `svg`, `svgz`; all on by default). `default_strategies()` wires the compiled-in ones. Building without a feature removes that strategy and its library:
+
+```bash
+cargo build -p git-opt-codecs --no-default-features --features png,svg
 ```
 
-`optimizers::process` is the only entry point used by the pipeline: optimize → size thresholds → verify → `Outcome::{Optimized, Optimal, Failed}`.
+FFI strategies (mozjpeg, libwebp) own every C object through guards, keep libjpeg structures boxed, and turn C errors (and libjpeg warnings) into `Err`. `verify.rs` holds the shared pixel comparisons.
 
-| Module | Optimizer | Notes |
+### `adapters/sqlite`
+
+One `SqliteStore` implements every persistence port over one pool (WAL, foreign keys). All SQL of the project lives here, next to `migrations/`. Rows are converted into domain entities at the boundary; settings are stored as one JSON document whose shape is stable across versions. `SqliteStore::in_memory()` is used by tests.
+
+### `adapters/git-cli`
+
+Runs the system `git` with prompts disabled, a C locale and timeouts. The token is sent as an `http.<host>.extraHeader` through `GIT_CONFIG_*` variables, scoped to the host of the URL each command uses. Working copies live in `$GIT_OPT_DATA_DIR/repos/<owner>/<name>`.
+
+### `adapters/github`
+
+A typed client over reqwest (rustls), with `Link` pagination, fork readiness polling, error messages with hints, and a 5-minute cache for the token and the account. The token comes from a chain of `TokenSource`s.
+
+### `adapters/http`
+
+Axum routes that translate HTTP into use cases. DTOs in `dto.rs` define the JSON contract (mirrored by `frontend/src/types.ts`), so domain types can evolve without breaking the UI. It also serves the built UI with an SPA fallback and enforces the optional admin token.
+
+### `server`
+
+Reads the environment (`config.rs`), builds `SqliteStore`, `GitHub`, `GitCli`, the codec catalog, `SystemClock` and `FastRandom`, injects them into `Services`, starts the scheduler and serves the HTTP router with graceful shutdown on SIGTERM.
+
+## Swapping a dependency
+
+| To replace… | Write… | Then… |
 |---|---|---|
-| `png.rs` | `oxipng` | PNG and APNG through the oxipng library; optional Zopfli |
-| `jpeg.rs` | `mozjpeg` | FFI to mozjpeg (`mozjpeg-sys`): coefficient transcode as in `jpegtran.c`. libjpeg errors and warnings unwind (`C-unwind`, built with `-fexceptions`) into a Rust `Err`; a guard frees every libjpeg object |
-| `gif.rs` | `gifsicle` | external tool through temp files (`external.rs`) |
-| `webp.rs` | `webp` | FFI to libwebp (`libwebp-sys`): decode, re-encode VP8L, splice it back into the original RIFF container |
-| `ico.rs` | `ico` | parses the icon directory, runs oxipng (no pixel-format reductions) on embedded PNGs |
-| `icns.rs` | `icns` | parses the ICNS element list, runs oxipng (no pixel-format reductions) on PNG elements, rebuilds the `TOC ` |
-| `svg.rs` | `svg` | token-level rewrite with `xmlparser`; embedded `data:` images sent through the raster optimizers; verified with `roxmltree` (tree), each embedded image's verifier and `resvg` (pixels) |
-| `svgz.rs` | `svgz` | gzip parse with `flate2`, the SVG optimizer on the content, Zopfli recompression behind the original header |
+| an image library (e.g. another PNG optimizer) | a `FormatStrategy` for the same `FileFormat` (in `codecs` behind a new feature, or in your own crate) | register it in `default_strategies()` or in `server` |
+| SQLite (e.g. PostgreSQL) | a crate implementing the seven storage ports | build it in `server/main.rs` instead of `SqliteStore` |
+| GitHub (e.g. GitLab, Gitea) | a crate implementing `CodeForge` | build it in `server` |
+| the system git (e.g. gitoxide) | a crate implementing `VersionControl`/`Workspace` | build it in `server` |
+| the HTTP framework | another driving adapter calling `Services` | serve it from `server` |
 
-`png.rs` also holds the keep-the-pixel-format recompression shared by ICO and ICNS. `verify.rs` holds the shared pixel comparisons (`image` crate) for still images, GIF and APNG frames.
+Use cases, domain rules and the other adapters stay untouched.
+
+## Testing by layer
+
+| Layer | How |
+|---|---|
+| domain | pure unit tests of every value object and policy (no I/O) |
+| codecs | each strategy shrinks a sample, its result passes its proof, its verifier rejects a one-pixel/one-byte change, and damaged/lossy/unusual inputs are refused; feature subsets must compile |
+| adapters | SQLite against an in-memory database; git against local repositories; GitHub payload mapping and the token chain |
+| application | use cases end to end with real SQLite and git, an in-memory forge, a fixed clock and a fake format strategy: PR opened as the developer, quiet polls, merges credited, fork + approval, rejected PRs |
+| whole system | `scripts/e2e.sh`: the real binary against a fake GitHub API, ten formats, pixels compared with ImageMagick/librsvg |
 
 ## Data model
 
-SQLite in WAL mode with foreign keys on. All queries live in `db.rs`.
+SQLite schema (`crates/adapters/sqlite/migrations`):
 
 ```
 sources 1───* repos 1───* runs 1───* run_files
                    │
                    └───* repo_ignored_blobs
 
-settings            (key → JSON value; "settings" and "github_token")
-blob_cache          (blob_sha, profile) → result      global, content addressed
+settings            (key → JSON: "settings" and "github_token")
+blob_cache          (blob_sha, profile) → verdict      global, content addressed
 ```
 
 | Table | Purpose |
 |---|---|
-| `settings` | `settings` holds the JSON-serialized `Settings`; `github_token` holds the token saved from the UI. |
-| `sources` | Users/orgs/"me" to import from, with their filters and last sync result. |
-| `repos` | The watch list: identity, mode, fork, per-repo settings, scheduling (`last_seen_sha`, `next_check_at`), last result, pending commit, latest PR and merged savings. |
-| `runs` | One row per meaningful check or publish. |
-| `run_files` | Per-file results of a run, including the **original blob id** (used to reject a PR's files when it is closed). |
-| `blob_cache` | What an optimizer profile did with a blob: `optimal`, `failed` (with the reason) or `optimized` (with the output blob id, reused while a PR is open). Shared by all repositories. |
-| `repo_ignored_blobs` | Blobs rejected by maintainers of a repository. |
-
-Repository status (`repos.status`): `pending` (never checked) → `ok` | `awaiting_approval` | `error`. Live states (`queued`, `running`) are not stored; the API adds them from the job queue.
+| `settings` | the JSON-serialized settings; the token saved from the UI |
+| `sources` | users/orgs/"me" to import from, with filters and last sync result |
+| `repos` | the watch list: identity, mode, fork, per-repo settings, scheduling, last result, pending commit, latest PR, merged savings |
+| `runs` | one row per meaningful check or publish |
+| `run_files` | per-file results, including the original blob id (used to reject a PR's files when it is closed) |
+| `blob_cache` | `BlobVerdict` per blob and strategy profile, shared by all repositories |
+| `repo_ignored_blobs` | blobs rejected by a repository's maintainers |
 
 ## Frontend
 
 ```
 frontend/src/
-├── main.ts, App.vue        app shell, navigation, theme, login gate
-├── router.ts               routes (history mode; the backend falls back to index.html)
+├── main.ts, App.vue        app shell, navigation, theme switcher, login gate
+├── router.ts               routes (history mode; the HTTP adapter falls back to index.html)
 ├── api.ts                  typed fetch client (adds the admin token, maps errors)
-├── types.ts                API types, mirror of backend/src/models.rs
+├── types.ts                API types, mirror of crates/adapters/http/src/dto.rs
 ├── format.ts               bytes, percentages, dates, relative times
-├── composables/            polling, status, toasts, async actions, clock
+├── composables/            polling, status, toasts, async actions, clock, theme
 ├── components/             tags, size bars, menus, PR links, confirm buttons, …
 ├── views/                  Dashboard, Repositories, Repository, Sources, Activity, Run, Settings
-└── styles/                 design tokens (light/dark), base styles, tags
+└── styles/                 design tokens (light-dark), base styles, tags
 ```
 
 Views poll the API every few seconds while visible, so running jobs and their phases update live without websockets.
 
 ## Docker image
 
-Three stages:
-
-1. `node:24-slim` builds the UI (`npm ci && npm run build`).
-2. `rust:1.98-slim-trixie` builds the release binary (with cargo registry/target cache mounts).
-3. `debian:trixie-slim` runtime with `git`, `gifsicle`, `ca-certificates` and `tini` (every other optimizer is compiled into the binary); runs as the unprivileged user `gitopt` (uid 1000) with data in `/data`.
+Three stages: the UI is built with `node:24-slim`; the `git-opt` binary with `rust:1.98-slim-trixie` (cache mounts; mozjpeg and libwebp compiled from source by their `-sys` crates); the runtime is `debian:trixie-slim` with `git`, `gifsicle`, `ca-certificates` and `tini`, running as the unprivileged user `gitopt` (uid 1000) with data in `/data`.
