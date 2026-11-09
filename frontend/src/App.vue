@@ -28,9 +28,9 @@ usePolling(async () => {
 const nav = [
   { to: '/', label: 'Panel' },
   { to: '/repos', label: 'Repositorios' },
-  { to: '/fuentes', label: 'Fuentes' },
-  { to: '/actividad', label: 'Actividad' },
-  { to: '/ajustes', label: 'Ajustes' },
+  { to: '/sources', label: 'Fuentes' },
+  { to: '/activity', label: 'Actividad' },
+  { to: '/settings', label: 'Ajustes' },
 ]
 
 const route = useRoute()

@@ -4,7 +4,7 @@ import DashboardView from './views/DashboardView.vue'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'panel', component: DashboardView, meta: { title: 'Panel' } },
+    { path: '/', name: 'dashboard', component: DashboardView, meta: { title: 'Panel' } },
     {
       path: '/repos',
       name: 'repos',
@@ -19,26 +19,26 @@ export const router = createRouter({
       meta: { title: 'Repositorio' },
     },
     {
-      path: '/fuentes',
+      path: '/sources',
       name: 'sources',
       component: () => import('./views/SourcesView.vue'),
       meta: { title: 'Fuentes' },
     },
     {
-      path: '/actividad',
+      path: '/activity',
       name: 'runs',
       component: () => import('./views/RunsView.vue'),
       meta: { title: 'Actividad' },
     },
     {
-      path: '/actividad/:id(\\d+)',
+      path: '/activity/:id(\\d+)',
       name: 'run',
       component: () => import('./views/RunDetailView.vue'),
       props: (route) => ({ id: Number(route.params.id) }),
       meta: { title: 'Ejecución' },
     },
     {
-      path: '/ajustes',
+      path: '/settings',
       name: 'settings',
       component: () => import('./views/SettingsView.vue'),
       meta: { title: 'Ajustes' },

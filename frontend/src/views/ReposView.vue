@@ -158,7 +158,7 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
       </button>
       <p class="hint full">
         Para repositorios de terceros, el modo automático crea un fork en tu cuenta y abre la PR como contribución.
-        ¿Quieres todos los repositorios de una cuenta? Usa <RouterLink to="/fuentes">Fuentes</RouterLink>.
+        ¿Quieres todos los repositorios de una cuenta? Usa <RouterLink to="/sources">Fuentes</RouterLink>.
       </p>
     </form>
 

@@ -47,13 +47,13 @@ function baseOf(path: string) {
 <template>
   <div class="page">
     <nav class="crumbs small" aria-label="Ruta">
-      <RouterLink to="/actividad">Actividad</RouterLink>
+      <RouterLink to="/activity">Actividad</RouterLink>
       <span aria-hidden="true">/</span>
       <span>Ejecución {{ id }}</span>
     </nav>
 
     <p v-if="notFound" class="empty panel">
-      Esta ejecución no existe o se borró con su repositorio. <RouterLink to="/actividad">Ver la actividad</RouterLink>
+      Esta ejecución no existe o se borró con su repositorio. <RouterLink to="/activity">Ver la actividad</RouterLink>
     </p>
     <p v-else-if="error && !run" class="notice danger">{{ error }}</p>
 

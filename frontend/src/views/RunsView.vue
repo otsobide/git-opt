@@ -74,9 +74,9 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in visible" :key="r.id" class="clickable" @click="router.push(`/actividad/${r.id}`)">
+          <tr v-for="r in visible" :key="r.id" class="clickable" @click="router.push(`/activity/${r.id}`)">
             <td class="nowrap" :title="formatDate(r.started_at)">
-              <RouterLink :to="`/actividad/${r.id}`" @click.stop>{{ formatRelative(r.started_at, now) }}</RouterLink>
+              <RouterLink :to="`/activity/${r.id}`" @click.stop>{{ formatRelative(r.started_at, now) }}</RouterLink>
             </td>
             <td>
               <RouterLink :to="`/repos/${r.repo_id}`" class="repo" @click.stop>{{ r.repo_full_name }}</RouterLink>

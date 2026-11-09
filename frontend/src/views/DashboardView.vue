@@ -90,7 +90,7 @@ const tokenSource: Record<string, string> = {
       </p>
       <div class="hero-actions">
         <RouterLink to="/repos" class="btn btn-primary">{{ repos.length ? 'Ver repositorios' : 'Añadir repositorio' }}</RouterLink>
-        <RouterLink v-if="!repos.length" to="/fuentes" class="btn">Importar usuario u organización</RouterLink>
+        <RouterLink v-if="!repos.length" to="/sources" class="btn">Importar usuario u organización</RouterLink>
         <button
           v-else
           type="button"
@@ -111,7 +111,7 @@ const tokenSource: Record<string, string> = {
         <span>{{ status.github.error || 'No hay token.' }}</span>
         <span>
           Define <code>GITHUB_TOKEN</code>, inicia sesión con <code>gh auth login</code> o guarda un token en
-          <RouterLink to="/ajustes">Ajustes</RouterLink>.
+          <RouterLink to="/settings">Ajustes</RouterLink>.
         </span>
       </div>
       <div v-if="status.git.error" class="notice">
@@ -163,7 +163,7 @@ const tokenSource: Record<string, string> = {
       <section class="section">
         <div class="section-head">
           <h2>Actividad reciente</h2>
-          <RouterLink to="/actividad" class="small">Ver toda la actividad</RouterLink>
+          <RouterLink to="/activity" class="small">Ver toda la actividad</RouterLink>
         </div>
         <div v-if="runs.length" class="table-wrap">
           <table class="table">
@@ -176,9 +176,9 @@ const tokenSource: Record<string, string> = {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in runs" :key="r.id" class="clickable" @click="router.push(`/actividad/${r.id}`)">
+              <tr v-for="r in runs" :key="r.id" class="clickable" @click="router.push(`/activity/${r.id}`)">
                 <td>
-                  <RouterLink :to="`/actividad/${r.id}`" @click.stop>{{ r.repo_full_name }}</RouterLink>
+                  <RouterLink :to="`/activity/${r.id}`" @click.stop>{{ r.repo_full_name }}</RouterLink>
                 </td>
                 <td><RunStatusTag :status="r.status" /></td>
                 <td class="saving">
@@ -234,7 +234,7 @@ const tokenSource: Record<string, string> = {
               </span>
             </li>
           </ul>
-          <RouterLink to="/ajustes" class="small">Configurar</RouterLink>
+          <RouterLink to="/settings" class="small">Configurar</RouterLink>
         </section>
       </aside>
     </div>

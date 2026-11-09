@@ -328,9 +328,9 @@ const TRIGGER: Record<string, string> = { schedule: 'Programada', manual: 'Manua
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in runs" :key="r.id" class="clickable" @click="router.push(`/actividad/${r.id}`)">
+              <tr v-for="r in runs" :key="r.id" class="clickable" @click="router.push(`/activity/${r.id}`)">
                 <td class="nowrap" :title="formatDate(r.started_at)">
-                  <RouterLink :to="`/actividad/${r.id}`" @click.stop>{{ formatRelative(r.started_at, now) }}</RouterLink>
+                  <RouterLink :to="`/activity/${r.id}`" @click.stop>{{ formatRelative(r.started_at, now) }}</RouterLink>
                 </td>
                 <td class="muted">{{ TRIGGER[r.trigger] ?? r.trigger }}</td>
                 <td>
