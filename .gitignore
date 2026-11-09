@@ -1,0 +1,8 @@
+/target
+/data
+node_modules/
+/frontend/dist
+*.db
+*.db-shm
+*.db-wal
+.env
