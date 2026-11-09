@@ -68,8 +68,8 @@ pub fn pr_body(files: &[FileReport]) -> String {
     if used("oxipng") {
         body.push_str("- **PNG**: re-compressed with [oxipng](https://github.com/shssoichiro/oxipng) (filters, deflate, lossless color-type reduction).\n");
     }
-    if used("jpegtran") {
-        body.push_str("- **JPEG**: `jpegtran -optimize [-progressive] -copy all`: Huffman tables are rebuilt; DCT coefficients and metadata are untouched.\n");
+    if used("mozjpeg") {
+        body.push_str("- **JPEG**: lossless transcode with [mozjpeg](https://github.com/mozilla/mozjpeg) (like `jpegtran -copy all -optimize -progressive`): optimized Huffman tables and scans; DCT coefficients and all metadata (EXIF, ICC, XMP) are untouched.\n");
     }
     if used("gifsicle") {
         body.push_str("- **GIF**: `gifsicle -O3`, without `--lossy`.\n");
@@ -110,7 +110,7 @@ mod tests {
     fn files() -> Vec<FileReport> {
         vec![
             FileReport { path: "a.png".into(), optimizer: "oxipng".into(), before: 2048, after: 1024 },
-            FileReport { path: "docs/b.jpg".into(), optimizer: "jpegtran".into(), before: 4096, after: 4000 },
+            FileReport { path: "docs/b.jpg".into(), optimizer: "mozjpeg".into(), before: 4096, after: 4000 },
         ]
     }
 

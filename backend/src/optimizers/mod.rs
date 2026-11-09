@@ -75,7 +75,7 @@ impl Registry {
     pub async fn new() -> Arc<Self> {
         let optimizers: Vec<Arc<dyn Optimizer>> = vec![
             Arc::new(png::Oxipng),
-            Arc::new(jpeg::Jpegtran),
+            Arc::new(jpeg::Mozjpeg),
             Arc::new(gif::Gifsicle),
         ];
         let registry = Arc::new(Self { available: RwLock::new(Vec::new()), optimizers });
@@ -265,23 +265,55 @@ mod tests {
         assert!(!png::is_apng(&bloated_png(&sample())));
     }
 
-    #[tokio::test]
-    async fn jpeg_is_lossless_when_jpegtran_is_installed() {
-        if jpeg::Jpegtran.probe().await.is_err() {
-            eprintln!("jpegtran not installed, skipping");
-            return;
-        }
+    fn sample_jpeg() -> Vec<u8> {
         let rgb = image::DynamicImage::ImageRgba8(sample()).to_rgb8();
-        let mut input = Vec::new();
-        JpegEncoder::new_with_quality(&mut input, 92)
+        let mut out = Vec::new();
+        JpegEncoder::new_with_quality(&mut out, 92)
             .write_image(rgb.as_raw(), rgb.width(), rgb.height(), ExtendedColorType::Rgb8)
             .unwrap();
-        let input = Arc::new(input);
+        out
+    }
+
+    /// Inserts EXIF-like APP1 and COM segments right after SOI.
+    fn with_metadata(jpeg: &[u8], exif: &[u8]) -> Vec<u8> {
+        let mut out = jpeg[..2].to_vec();
+        for (marker, payload) in [(0xE1u8, exif), (0xFE, b"made by a test".as_slice())] {
+            out.extend_from_slice(&[0xFF, marker]);
+            out.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
+            out.extend_from_slice(payload);
+        }
+        out.extend_from_slice(&jpeg[2..]);
+        out
+    }
+
+    #[tokio::test]
+    async fn jpeg_keeps_pixels_and_metadata() {
+        let input = Arc::new(with_metadata(&sample_jpeg(), b"Exif\0\0orientation=6"));
         let settings = Settings { min_savings_bytes: 1, min_savings_percent: 0.0, ..Settings::default() };
-        match process(&jpeg::Jpegtran, input.clone(), &settings).await {
-            Outcome::Optimized(out) => verify::same_pixels(&input, &out, ImageFormat::Jpeg).unwrap(),
+        match process(&jpeg::Mozjpeg, input.clone(), &settings).await {
+            Outcome::Optimized(out) => {
+                verify::same_pixels(&input, &out, ImageFormat::Jpeg).unwrap();
+                let segments = jpeg::metadata_segments(&out).unwrap();
+                assert!(segments.contains(&(0xE1, b"Exif\0\0orientation=6".as_slice())));
+                assert!(segments.contains(&(0xFE, b"made by a test".as_slice())));
+            }
             other => panic!("expected optimization, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn jpeg_verifier_rejects_changed_metadata() {
+        let original = Arc::new(with_metadata(&sample_jpeg(), b"Exif\0\0orientation=6"));
+        let altered = Arc::new(with_metadata(&sample_jpeg(), b"Exif\0\0orientation=1"));
+        assert!(jpeg::Mozjpeg.verify(original, altered).await.is_err());
+    }
+
+    #[test]
+    fn damaged_jpeg_is_an_error_not_a_crash() {
+        let jpeg = sample_jpeg();
+        assert!(jpeg::transcode(&jpeg[..jpeg.len() / 2], true).is_err());
+        assert!(jpeg::transcode(b"definitely not a jpeg", true).is_err());
+        assert!(jpeg::transcode(&jpeg, true).is_ok());
     }
 
     fn animated_gif(shift: u32) -> Vec<u8> {
@@ -319,9 +351,9 @@ mod tests {
 
     #[test]
     fn picks_optimizer_by_extension() {
-        let active: Vec<Arc<dyn Optimizer>> = vec![Arc::new(png::Oxipng), Arc::new(jpeg::Jpegtran)];
+        let active: Vec<Arc<dyn Optimizer>> = vec![Arc::new(png::Oxipng), Arc::new(jpeg::Mozjpeg)];
         assert_eq!(for_path(&active, "a/b/Logo.PNG").unwrap().id(), "oxipng");
-        assert_eq!(for_path(&active, "photo.jpeg").unwrap().id(), "jpegtran");
+        assert_eq!(for_path(&active, "photo.jpeg").unwrap().id(), "mozjpeg");
         assert!(for_path(&active, "anim.gif").is_none());
         assert!(for_path(&active, "README").is_none());
     }
