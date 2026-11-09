@@ -91,7 +91,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/user":
             return self.send(200, USER)
         if path == "/user/repos":
-            mine = [k for k, v in REPOS.items() if v.get("push") or k.split("/")[0] == USER["login"]]
+            owned_only = query.get("affiliation", [""])[0] == "owner"
+            mine = [k for k, v in REPOS.items()
+                    if k.split("/")[0] == USER["login"] or (v.get("push") and not owned_only)]
             return self.send(200, [repo_json(k) for k in mine])
         m = re.fullmatch(r"/(?:users|orgs)/([^/]+)/repos", path)
         if m:
