@@ -75,6 +75,28 @@ cat >img/vector.svg <<'SVG'
   </g>
 </svg>
 SVG
+python3 -I - >"$WORK/drawing.svg" <<'PY'   # a bigger Inkscape drawing for the .svgz
+print('<?xml version="1.0" encoding="UTF-8" standalone="no"?>')
+print('<svg width="600" height="600" viewBox="0 0 600 600" inkscape:version="1.3"')
+print('   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns="http://www.w3.org/2000/svg">')
+for i in range(60):
+    print(f'  <rect\n     inkscape:label="tile {i}"\n     inkscape:transform-center-x="{i}"\n     id="rect{i}"\n'
+          f'     style="fill:#{i * 4:02x}{255 - i * 4:02x}80"\n     x="{i % 10 * 60}"\n     y="{i // 10 * 60}"\n     width="50"\n     height="50" />')
+print('</svg>')
+PY
+(cd "$WORK" && gzip -1 -c drawing.svg) >img/vector.svgz   # the gzip header keeps the file name
+magick -size 64x64 gradient:'#16a34a'-'#facc15' -define png:compression-level=0 "$WORK/badge.png"
+printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><image width="64" height="64" href="data:image/png;base64,%s"/></svg>\n' \
+  "$(base64 -w0 "$WORK/badge.png")" >img/badge.svg
+magick -size 128x128 radial-gradient:'#a855f7'-'#1e1b4b' -define png:compression-level=0 "$WORK/app.png"
+python3 -I - "$WORK/app.png" img/app.icns <<'PY'   # ICNS: TOC + PNG element + opaque RLE element
+import struct, sys
+png = open(sys.argv[1], "rb").read()
+items = [(b"ic07", png), (b"is32", bytes(range(200)))]
+toc = b"".join(k + struct.pack(">I", len(d) + 8) for k, d in items)
+body = b"".join(k + struct.pack(">I", len(d) + 8) + d for k, d in [(b"TOC ", toc)] + items)
+open(sys.argv[2], "wb").write(b"icns" + struct.pack(">I", len(body) + 8) + body)
+PY
 git add -A && commit -m "Initial"
 git clone -q --bare . ../demo.git && git clone -q --bare . ../third.git && git init -q --bare ../fork.git
 
@@ -96,16 +118,34 @@ curl -fs -X POST -H 'content-type: application/json' -d '{"repo":"octo/demo"}' "
 wait_idle 1
 [[ $(last_run 1 status) == pr_opened ]] || fail "expected pr_opened, got $(last_run 1 status): $(last_run 1 message)"
 optimized=$(curl -fs "$API/runs/$(last_run 1 id)" | json "' '.join(sorted(f['path'] for f in d['files']))")
-expected="img/anim.png img/big.png img/favicon.ico img/icon.png img/photo.jpg img/photo.webp img/vector.svg"
+expected="img/anim.png img/app.icns img/badge.svg img/big.png img/favicon.ico img/icon.png img/photo.jpg img/photo.webp img/vector.svg img/vector.svgz"
 [[ $optimized == "$expected" ]] || fail "optimized files: $optimized"
 
 step "pixels are identical (ImageMagick AE metric; SVG rendered by librsvg)"
 cd "$WORK" && git clone -q demo.git check && cd check
-for f in img/big.png img/icon.png img/photo.jpg img/photo.webp img/anim.png img/favicon.ico img/vector.svg; do
+for f in img/big.png img/icon.png img/photo.jpg img/photo.webp img/anim.png img/favicon.ico img/vector.svg \
+  img/vector.svgz img/badge.svg img/app.icns; do
   ext=${f##*.}
   git show "main:$f" >"$WORK/orig.$ext"
   git show "origin/git-opt/optimize-images:$f" >"$WORK/new.$ext"
-  ae=$(magick compare -metric AE "$WORK/orig.$ext" "$WORK/new.$ext" null: 2>&1 || true)
+  if [[ $ext == icns ]]; then
+    # ImageMagick can't read ICNS: compare the PNG element, require the rest byte-identical.
+    python3 -I - "$WORK/orig.icns" "$WORK/new.icns" "$WORK" <<'PY' || fail "ICNS elements differ"
+import struct, sys
+def elements(path):
+    d = open(path, "rb").read(); pos, out = 8, {}
+    while pos < len(d):
+        kind, n = d[pos:pos + 4], struct.unpack(">I", d[pos + 4:pos + 8])[0]
+        out[kind] = d[pos + 8:pos + n]; pos += n
+    return out
+a, b = elements(sys.argv[1]), elements(sys.argv[2])
+assert list(a) == list(b) and a[b"is32"] == b[b"is32"]
+open(sys.argv[3] + "/orig-ic07.png", "wb").write(a[b"ic07"]); open(sys.argv[3] + "/new-ic07.png", "wb").write(b[b"ic07"])
+PY
+    ae=$(magick compare -metric AE "$WORK/orig-ic07.png" "$WORK/new-ic07.png" null: 2>&1 || true)
+  else
+    ae=$(magick compare -metric AE "$WORK/orig.$ext" "$WORK/new.$ext" null: 2>&1 || true)
+  fi
   [[ $ae == 0* ]] || fail "$f differs: AE=$ae"
   printf "%-17s %7s -> %7s bytes  AE=%s\n" "$f" "$(stat -c %s "$WORK/orig.$ext")" "$(stat -c %s "$WORK/new.$ext")" "$ae"
 done
