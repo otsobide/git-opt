@@ -11,6 +11,7 @@ mod gif;
 mod jpeg;
 mod png;
 mod verify;
+mod webp;
 
 use std::{path::Path, sync::Arc};
 
@@ -77,6 +78,7 @@ impl Registry {
             Arc::new(png::Oxipng),
             Arc::new(jpeg::Mozjpeg),
             Arc::new(gif::Gifsicle),
+            Arc::new(webp::Webp),
         ];
         let registry = Arc::new(Self { available: RwLock::new(Vec::new()), optimizers });
         registry.refresh().await;
@@ -347,6 +349,83 @@ mod tests {
             Outcome::Optimized(out) => verify::same_gif_frames(&input, &out).unwrap(),
             other => panic!("expected optimization, got {other:?}"),
         }
+    }
+
+    fn noisy_rgba(width: u32, height: u32, alpha: bool) -> Vec<u8> {
+        (0..width * height)
+            .flat_map(|i| {
+                let (x, y) = (i % width, i / width);
+                let a = if alpha && (x + y) % 7 == 0 { 0 } else { 255 };
+                [((x * 3) ^ y) as u8, (y * 5 + x / 3) as u8, ((x * y) % 251) as u8, a]
+            })
+            .collect()
+    }
+
+    /// Wraps a simple lossless WebP in an extended (VP8X) container with
+    /// ICC and EXIF chunks.
+    fn with_webp_metadata(simple: &[u8], width: u32, height: u32) -> Vec<u8> {
+        let mut vp8x = vec![0x20 | 0x10 | 0x08, 0, 0, 0];
+        vp8x.extend_from_slice(&(width - 1).to_le_bytes()[..3]);
+        vp8x.extend_from_slice(&(height - 1).to_le_bytes()[..3]);
+        let original = webp::chunks(simple).unwrap();
+        let vp8l = original.iter().find(|c| &c.fourcc == b"VP8L").unwrap();
+        let parts: [(&[u8; 4], &[u8]); 4] =
+            [(b"VP8X", &vp8x), (b"ICCP", b"fake icc profile"), (b"VP8L", vp8l.payload), (b"EXIF", b"Exif\0\0odd")];
+        let mut body = b"WEBP".to_vec();
+        for (fourcc, payload) in parts {
+            body.extend_from_slice(fourcc);
+            body.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+            body.extend_from_slice(payload);
+            if payload.len() % 2 == 1 {
+                body.push(0);
+            }
+        }
+        let mut out = b"RIFF".to_vec();
+        out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        out.extend_from_slice(&body);
+        out
+    }
+
+    #[tokio::test]
+    async fn lossless_webp_keeps_pixels_and_chunks() {
+        let (w, h) = (80, 60);
+        let fast = webp::encode_lossless(&noisy_rgba(w, h, true), w as i32, h as i32, 0).unwrap();
+        let input = Arc::new(with_webp_metadata(&fast, w, h));
+        let settings = Settings { min_savings_bytes: 1, min_savings_percent: 0.0, ..Settings::default() };
+        match process(&webp::Webp, input.clone(), &settings).await {
+            Outcome::Optimized(out) => {
+                assert!(out.len() < input.len());
+                let kinds: Vec<[u8; 4]> = webp::chunks(&out).unwrap().iter().map(|c| c.fourcc).collect();
+                assert_eq!(kinds, [*b"VP8X", *b"ICCP", *b"VP8L", *b"EXIF"]);
+                verify::same_pixels(&input, &out, ImageFormat::WebP).unwrap();
+            }
+            other => panic!("expected optimization, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn lossy_webp_is_never_touched() {
+        let (w, h) = (32, 32);
+        let rgba = noisy_rgba(w, h, false);
+        let lossy = unsafe {
+            let mut out = std::ptr::null_mut();
+            let len = libwebp_sys::WebPEncodeRGBA(rgba.as_ptr(), w as i32, h as i32, w as i32 * 4, 80.0, &mut out);
+            let bytes = std::slice::from_raw_parts(out, len).to_vec();
+            libwebp_sys::WebPFree(out as *mut std::ffi::c_void);
+            bytes
+        };
+        let outcome = process(&webp::Webp, Arc::new(lossy), &Settings::default()).await;
+        assert!(matches!(&outcome, Outcome::Failed(e) if e.contains("lossy")), "{outcome:?}");
+    }
+
+    #[test]
+    fn webp_verifier_rejects_changed_pixels() {
+        let (w, h) = (24, 24);
+        let a = webp::encode_lossless(&noisy_rgba(w, h, false), w as i32, h as i32, 3).unwrap();
+        let mut pixels = noisy_rgba(w, h, false);
+        pixels[0] ^= 1;
+        let b = webp::encode_lossless(&pixels, w as i32, h as i32, 3).unwrap();
+        assert!(verify::same_pixels(&a, &b, ImageFormat::WebP).is_err());
     }
 
     #[test]

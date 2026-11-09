@@ -71,6 +71,9 @@ pub fn pr_body(files: &[FileReport]) -> String {
     if used("mozjpeg") {
         body.push_str("- **JPEG**: lossless transcode with [mozjpeg](https://github.com/mozilla/mozjpeg) (like `jpegtran -copy all -optimize -progressive`): optimized Huffman tables and scans; DCT coefficients and all metadata (EXIF, ICC, XMP) are untouched.\n");
     }
+    if used("webp") {
+        body.push_str("- **WebP**: lossless files only, re-encoded with libwebp at maximum effort (`-lossless -z 9 -exact`); ICC, EXIF and XMP chunks are kept.\n");
+    }
     if used("gifsicle") {
         body.push_str("- **GIF**: `gifsicle -O3`, without `--lossy`.\n");
     }
