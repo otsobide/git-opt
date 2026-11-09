@@ -41,9 +41,10 @@ const label = computed(
 .track {
   position: relative;
   flex: 1;
-  height: 0.55rem;
+  height: 0.6rem;
   border-radius: 2px;
   overflow: hidden;
+  background-size: 6px 6px;
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .kept {
@@ -62,6 +63,7 @@ const label = computed(
 .lg .track {
   height: 1.6rem;
   border-radius: var(--radius-sm);
+  background-size: 10px 10px;
 }
 .lg .kept {
   border-right-width: 3px;
