@@ -41,7 +41,7 @@ async function add() {
   adding.value = true
   try {
     const repo = await api.addRepo(value, newMode.value, newAutoPr.value)
-    toast.ok(`${repo.owner}/${repo.name} añadido. La primera comprobación ya está en cola.`)
+    toast.ok(`${repo.owner}/${repo.name} added. Its first check is queued.`)
     newRepo.value = ''
     await refresh()
   } catch (e) {
@@ -55,11 +55,11 @@ async function add() {
 
 type Filter = 'all' | 'pr' | 'awaiting' | 'errors' | 'paused'
 const FILTERS: { id: Filter; label: string; test: (r: RepoView) => boolean }[] = [
-  { id: 'all', label: 'Todos', test: () => true },
-  { id: 'pr', label: 'Con PR abierta', test: (r) => r.pr_state === 'open' },
-  { id: 'awaiting', label: 'Esperando aprobación', test: (r) => r.status === 'awaiting_approval' },
-  { id: 'errors', label: 'Con errores', test: (r) => r.status === 'error' },
-  { id: 'paused', label: 'En pausa', test: (r) => !r.enabled },
+  { id: 'all', label: 'All', test: () => true },
+  { id: 'pr', label: 'Open PR', test: (r) => r.pr_state === 'open' },
+  { id: 'awaiting', label: 'Awaiting approval', test: (r) => r.status === 'awaiting_approval' },
+  { id: 'errors', label: 'Failing', test: (r) => r.status === 'error' },
+  { id: 'paused', label: 'Paused', test: (r) => !r.enabled },
 ]
 
 const filter = computed<Filter>({
@@ -82,9 +82,9 @@ const visible = computed(() => {
 })
 
 function nextCheck(r: RepoView) {
-  if (r.running) return 'ahora'
-  if (r.queued) return 'en cola'
-  if (!r.enabled) return 'en pausa'
+  if (r.running) return 'now'
+  if (r.queued) return 'queued'
+  if (!r.enabled) return 'paused'
   return formatRelative(r.next_check_at, now.value)
 }
 
@@ -94,82 +94,82 @@ const check = (r: RepoView, force = false) =>
   run(
     `check-${r.id}`,
     () => api.checkRepo(r.id, force),
-    force ? `Revisión completa de ${r.name} en cola` : `Comprobación de ${r.name} en cola`,
+    force ? `Forced check of ${r.name} queued` : `Check of ${r.name} queued`,
   )
 const toggle = (r: RepoView) =>
   run(
     `toggle-${r.id}`,
     () => api.patchRepo(r.id, { enabled: !r.enabled }),
-    r.enabled ? `${r.name} en pausa` : `${r.name} reanudado`,
+    r.enabled ? `${r.name} paused` : `${r.name} resumed`,
   )
-const publish = (r: RepoView) => run(`publish-${r.id}`, () => api.publishRepo(r.id), `Abriendo la PR de ${r.name}`)
+const publish = (r: RepoView) => run(`publish-${r.id}`, () => api.publishRepo(r.id), `Opening the PR for ${r.name}`)
 // Deleting from the row menu takes two clicks: the first arms the item.
 const armedDelete = ref<number | null>(null)
 const remove = (r: RepoView) => {
   armedDelete.value = null
-  return run(`delete-${r.id}`, () => api.deleteRepo(r.id), `${r.owner}/${r.name} eliminado`)
+  return run(`delete-${r.id}`, () => api.deleteRepo(r.id), `${r.owner}/${r.name} removed`)
 }
-const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repositorios en cola')
+const checkAll = () => run('all', api.checkAll, 'All repositories queued for a check')
 </script>
 
 <template>
   <div class="page">
     <header class="page-head">
       <div>
-        <h1>Repositorios</h1>
+        <h1>Repositories</h1>
         <p class="lede">
-          Cada repositorio se descarga y se revisa periódicamente. Si cambia su rama principal, git-opt optimiza las
-          imágenes nuevas y propone los cambios en una PR.
+          Each repository is cloned and checked periodically. When its default branch changes, git-opt optimizes the new
+          images and proposes the changes in a PR.
         </p>
       </div>
       <div class="toolbar">
         <button type="button" class="btn" :disabled="busy !== null || !repos.length" @click="checkAll">
-          Comprobar todos
+          Check all
         </button>
       </div>
     </header>
 
     <form class="add panel" @submit.prevent="add">
       <div class="field grow">
-        <label for="new-repo">Añadir repositorio</label>
+        <label for="new-repo">Add repository</label>
         <input
           id="new-repo"
           v-model="newRepo"
           class="input"
-          placeholder="propietario/nombre o https://github.com/propietario/nombre"
+          placeholder="owner/name or https://github.com/owner/name"
           autocomplete="off"
           spellcheck="false"
         />
       </div>
       <div class="field">
-        <label for="new-mode">Cómo enviar los cambios</label>
+        <label for="new-mode">How to send changes</label>
         <select id="new-mode" v-model="newMode" class="select">
-          <option value="auto">Automático según permisos</option>
-          <option value="direct">Rama en el propio repositorio</option>
-          <option value="fork">Contribución desde un fork</option>
+          <option value="auto">Automatic (based on permissions)</option>
+          <option value="direct">Direct</option>
+          <option value="fork">Fork (contribution)</option>
         </select>
       </div>
       <label class="check">
         <input v-model="newAutoPr" type="checkbox" />
-        Abrir la PR sin pedir aprobación
+        Open PRs automatically
       </label>
       <button class="btn btn-primary" type="submit" :disabled="adding || !newRepo.trim()">
-        {{ adding ? 'Añadiendo…' : 'Añadir' }}
+        {{ adding ? 'Adding…' : 'Add' }}
       </button>
       <p class="hint full">
-        Para repositorios de terceros, el modo automático crea un fork en tu cuenta y abre la PR como contribución.
-        ¿Quieres todos los repositorios de una cuenta? Usa <RouterLink to="/sources">Fuentes</RouterLink>.
+        For third-party repositories, automatic mode forks into your account and opens the PR as a contribution.
+        Want every repository of an account? Use <RouterLink to="/sources">Sources</RouterLink>.
       </p>
     </form>
 
     <div class="filters">
-      <div class="segmented" role="radiogroup" aria-label="Filtrar repositorios">
+      <div class="segmented" role="radiogroup" aria-label="Filter repositories">
         <label v-for="f in FILTERS" :key="f.id">
           <input v-model="filter" type="radio" name="filter" :value="f.id" />
           {{ f.label }} <span class="count">{{ counts[f.id] }}</span>
         </label>
       </div>
-      <input v-model="search" class="input search" type="search" placeholder="Buscar" aria-label="Buscar repositorio" />
+      <input v-model="search" class="input search" type="search" placeholder="Search" aria-label="Search repositories" />
     </div>
 
     <p v-if="error" class="notice danger">{{ error }}</p>
@@ -178,26 +178,26 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
       <table class="table repos">
         <thead>
           <tr>
-            <th>Repositorio</th>
-            <th>Estado</th>
+            <th>Repository</th>
+            <th>Status</th>
             <th>PR</th>
-            <th>Próxima comprobación</th>
-            <th><span class="visually-hidden">Acciones</span></th>
+            <th>Next check</th>
+            <th><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in visible" :key="r.id" :class="{ paused: !r.enabled }">
-            <td data-label="Repositorio">
+            <td data-label="Repository">
               <RouterLink :to="`/repos/${r.id}`" class="name">
                 <span class="owner">{{ r.owner }}/</span>{{ r.name }}
               </RouterLink>
               <div class="meta">
                 <span class="chip">{{ r.default_branch }}</span>
-                <span v-if="r.mode === 'fork'" class="chip fork">contribución</span>
-                <span v-if="!r.auto_pr" class="chip">aprobación manual</span>
+                <span v-if="r.mode === 'fork'" class="chip fork">contribution</span>
+                <span v-if="!r.auto_pr" class="chip">manual approval</span>
               </div>
             </td>
-            <td data-label="Estado">
+            <td data-label="Status">
               <RepoStatusTag :repo="r" />
               <div v-if="r.running && r.phase" class="hint">{{ r.phase }}</div>
               <div v-else-if="r.status === 'error' && r.last_error" class="error-text clamp" :title="r.last_error">
@@ -207,9 +207,9 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
             <td data-label="PR">
               <PrLink :number="r.pr_number" :url="r.pr_url" :state="r.pr_state" />
             </td>
-            <td data-label="Próxima" class="nowrap">
+            <td data-label="Next check" class="nowrap">
               {{ nextCheck(r) }}
-              <div v-if="r.last_checked_at" class="hint">última {{ formatRelative(r.last_checked_at, now) }}</div>
+              <div v-if="r.last_checked_at" class="hint">last {{ formatRelative(r.last_checked_at, now) }}</div>
             </td>
             <td class="actions">
               <button
@@ -219,7 +219,7 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
                 :disabled="busy !== null"
                 @click="publish(r)"
               >
-                Abrir PR
+                Open PR
               </button>
               <button
                 type="button"
@@ -227,20 +227,20 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
                 :disabled="busy !== null || r.running || r.queued"
                 @click="check(r)"
               >
-                Comprobar
+                Check now
               </button>
-              <RowMenu :label="`Más acciones para ${r.name}`">
+              <RowMenu :label="`More actions for ${r.name}`">
                 <button type="button" :disabled="r.running || r.queued" @click="check(r, true)">
-                  Revisar todo aunque no haya cambios
+                  Force check
                 </button>
-                <button type="button" @click="toggle(r)">{{ r.enabled ? 'Pausar' : 'Reanudar' }}</button>
-                <RouterLink :to="`/repos/${r.id}`">Configurar</RouterLink>
+                <button type="button" @click="toggle(r)">{{ r.enabled ? 'Pause' : 'Resume' }}</button>
+                <RouterLink :to="`/repos/${r.id}`">Configure</RouterLink>
                 <hr />
                 <button v-if="armedDelete === r.id" type="button" class="danger" @click="remove(r)">
-                  ¿Seguro? Eliminar {{ r.name }}
+                  Sure? Remove {{ r.name }}
                 </button>
                 <button v-else type="button" class="danger" @click.stop="armedDelete = r.id">
-                  Eliminar de la lista
+                  Remove from list
                 </button>
               </RowMenu>
             </td>
@@ -248,9 +248,9 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
         </tbody>
       </table>
     </div>
-    <p v-else-if="!loading && repos.length" class="empty panel">Ningún repositorio coincide con el filtro.</p>
+    <p v-else-if="!loading && repos.length" class="empty panel">No repository matches the filter.</p>
     <p v-else-if="!loading" class="empty panel">
-      Aún no hay repositorios. Escribe <code>propietario/nombre</code> arriba para empezar.
+      No repositories yet. Type <code>owner/name</code> above to start.
     </p>
   </div>
 </template>
@@ -356,9 +356,9 @@ const checkAll = () => run('all', api.checkAll, 'Comprobación de todos los repo
     border: 0;
     padding: 0.2rem 0;
   }
-  .repos td[data-label='Estado'],
+  .repos td[data-label='Status'],
   .repos td[data-label='PR'],
-  .repos td[data-label='Próxima'] {
+  .repos td[data-label='Next check'] {
     display: inline-block;
     margin-right: 1rem;
   }
