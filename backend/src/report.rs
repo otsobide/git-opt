@@ -81,7 +81,7 @@ pub fn pr_body(files: &[FileReport]) -> String {
         body.push_str("- **ICNS**: embedded PNG images recompressed with oxipng, keeping their pixel format; every other element untouched.\n");
     }
     if used("svg") {
-        body.push_str("- **SVG**: only comments (license notices are kept), editor metadata (Inkscape, Illustrator, Sketch…) and whitespace between tags were removed; paths, numbers, ids, classes and styles are untouched. Verified by comparing the XML trees and the rendered pixels.\n");
+        body.push_str("- **SVG**: only comments (license notices are kept), editor metadata (Inkscape, Illustrator, Sketch…) and whitespace between tags were removed, and embedded PNG/JPEG/WebP/GIF images were optimized losslessly; paths, numbers, ids, classes and styles are untouched. Verified by comparing the XML trees, each embedded image and the rendered pixels.\n");
     }
     if used("gifsicle") {
         body.push_str("- **GIF**: `gifsicle -O3`, without `--lossy`.\n");

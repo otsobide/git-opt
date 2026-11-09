@@ -11,23 +11,32 @@
 //!   `xml:space="preserve"`;
 //! - redundant whitespace inside tags.
 //!
-//! Never touched: numbers, path data, ids, classes, styles, any attribute
-//! value, element order, the XML declaration, the DOCTYPE, CDATA and
-//! processing instructions.
+//! Raster images embedded as `data:image/(png|jpeg|gif|webp);base64,` URIs
+//! are optimized by their own optimizer (with its own proof) and re-encoded
+//! in base64 without line breaks. Data URIs inside CSS (`url(data:…)`) and
+//! embedded SVG documents are left alone.
 //!
-//! Proof of equivalence, with two independent checks:
+//! Never touched: numbers, path data, ids, classes, styles, any other
+//! attribute value, element order, the XML declaration, the DOCTYPE, CDATA
+//! and processing instructions.
+//!
+//! Proof of equivalence, with three checks:
 //! 1. a different XML parser (roxmltree) must see the same tree in both files
-//!    once the removals above are applied to the original;
-//! 2. resvg must render both files to identical pixels.
+//!    once the removals above are applied to the original (embedded images
+//!    compared by type only);
+//! 2. every embedded image that changed passes its own format's verification;
+//! 3. resvg must render both files, embedded images included, to identical
+//!    pixels.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, ops::Range, sync::Arc};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use async_trait::async_trait;
+use base64::Engine;
 use resvg::{tiny_skia, usvg};
 use xmlparser::{ElementEnd, EntityDefinition, Token, Tokenizer};
 
-use super::Optimizer;
+use super::{Optimizer, Outcome, gif, jpeg, png, process, webp};
 use crate::settings::Settings;
 
 const XML_NS: &str = "http://www.w3.org/XML/1998/namespace";
@@ -89,24 +98,42 @@ impl Optimizer for Svg {
     fn extensions(&self) -> &'static [&'static str] {
         &["svg"]
     }
-    fn profile(&self, _: &Settings) -> String {
-        "svg-clean:v1".into()
+    fn profile(&self, s: &Settings) -> String {
+        // Embedded images make the output depend on the raster optimizers too.
+        let embedded: Vec<String> = EMBEDDED
+            .iter()
+            .map(|o| if s.optimizer_enabled(o.id(), o.enabled_by_default()) { o.profile(s) } else { format!("{}:off", o.id()) })
+            .collect();
+        format!("svg-clean:v2+{}", embedded.join("+"))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         Ok("built-in, verified with resvg".into())
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, _: &Settings) -> Result<Vec<u8>> {
-        tokio::task::spawn_blocking(move || {
+    async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
+        let mut text = tokio::task::spawn_blocking(move || {
             let text = std::str::from_utf8(&input).context("SVG is not UTF-8")?;
-            Ok(clean(text)?.into_bytes())
+            clean(text)
         })
-        .await?
+        .await??;
+
+        // Replace from the end so earlier ranges stay valid.
+        for uri in data_uris(&text)?.into_iter().rev() {
+            let Some(optimizer) = embedded_optimizer(&uri.mime) else { continue };
+            if !s.optimizer_enabled(optimizer.id(), optimizer.enabled_by_default()) {
+                continue;
+            }
+            if let Outcome::Optimized(bytes) = process(optimizer, Arc::new(uri.bytes), s).await {
+                let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+                text.replace_range(uri.range, &format!("{}{encoded}", escape_attr(&uri.prefix)));
+            }
+        }
+        Ok(text.into_bytes())
     }
 
     async fn verify(&self, original: Arc<Vec<u8>>, candidate: Arc<Vec<u8>>) -> Result<()> {
-        tokio::task::spawn_blocking(move || {
+        let changed = tokio::task::spawn_blocking(move || {
             let (a, b) = (std::str::from_utf8(&original)?, std::str::from_utf8(&candidate)?);
             ensure!(canonical(a)? == canonical(b)?, "the XML tree changed");
             let (ra, rb) = (render(&original)?, render(&candidate)?);
@@ -114,10 +141,135 @@ impl Optimizer for Svg {
                 (ra.width(), ra.height()) == (rb.width(), rb.height()) && ra.data() == rb.data(),
                 "rendering changed"
             );
-            Ok(())
+            let (ea, eb) = (embedded_images(a)?, embedded_images(b)?);
+            ensure!(ea.len() == eb.len(), "number of embedded images changed");
+            let mut changed = Vec::new();
+            for ((mime_a, bytes_a), (mime_b, bytes_b)) in ea.into_iter().zip(eb) {
+                ensure!(mime_a == mime_b, "embedded image type changed");
+                if bytes_a != bytes_b {
+                    changed.push((mime_a, bytes_a, bytes_b));
+                }
+            }
+            Ok(changed)
         })
-        .await?
+        .await??;
+
+        for (index, (mime, before, after)) in changed.into_iter().enumerate() {
+            let optimizer = embedded_optimizer(&mime).ok_or_else(|| anyhow!("unexpected embedded {mime}"))?;
+            optimizer
+                .verify(Arc::new(before), Arc::new(after))
+                .await
+                .with_context(|| format!("embedded image {index} ({mime})"))?;
+        }
+        Ok(())
     }
+}
+
+// --------------------------------------------------------- embedded images
+
+/// Raster optimizers reused for images embedded as data URIs.
+const EMBEDDED: [&dyn Optimizer; 4] = [&png::Oxipng, &jpeg::Mozjpeg, &webp::Webp, &gif::Gifsicle];
+
+fn embedded_optimizer(mime: &str) -> Option<&'static dyn Optimizer> {
+    let id = match mime {
+        "image/png" => "oxipng",
+        "image/jpeg" | "image/jpg" => "mozjpeg",
+        "image/webp" => "webp",
+        "image/gif" => "gifsicle",
+        _ => return None,
+    };
+    EMBEDDED.iter().copied().find(|o| o.id() == id)
+}
+
+/// A whole attribute value of the form `data:image/<type>[;…];base64,<data>`.
+struct DataUri {
+    /// Everything up to and including the comma, unescaped.
+    prefix: String,
+    mime: String,
+    bytes: Vec<u8>,
+}
+
+fn parse_data_uri(value: &str) -> Option<DataUri> {
+    let rest = value.strip_prefix("data:")?;
+    let (meta, payload) = rest.split_once(',')?;
+    let lower = meta.to_ascii_lowercase();
+    let mime = lower.strip_suffix(";base64")?.split(';').next()?.to_string();
+    embedded_optimizer(&mime)?;
+    let compact: String = payload.chars().filter(|c| !c.is_ascii_whitespace()).collect();
+    let bytes = base64::engine::general_purpose::STANDARD.decode(compact).ok()?;
+    Some(DataUri { prefix: format!("data:{meta},"), mime, bytes })
+}
+
+/// Resolves the predefined XML entities and character references. `None` if
+/// the value uses other (DTD) entities: such values are left alone.
+fn unescape(raw: &str) -> Option<Cow<'_, str>> {
+    if !raw.contains('&') {
+        return Some(Cow::Borrowed(raw));
+    }
+    let mut out = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(i) = rest.find('&') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        let end = after.find(';')?;
+        let entity = &after[..end];
+        out.push(match entity {
+            "amp" => '&',
+            "lt" => '<',
+            "gt" => '>',
+            "quot" => '"',
+            "apos" => '\'',
+            _ => match entity.strip_prefix("#x").or_else(|| entity.strip_prefix("#X")) {
+                Some(hex) => char::from_u32(u32::from_str_radix(hex, 16).ok()?)?,
+                None => char::from_u32(entity.strip_prefix('#')?.parse().ok()?)?,
+            },
+        });
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(Cow::Owned(out))
+}
+
+fn escape_attr(value: &str) -> String {
+    value.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;").replace('\'', "&apos;")
+}
+
+/// Embedded raster images in `text`, with the byte range of each raw
+/// attribute value.
+fn data_uris(text: &str) -> Result<Vec<DataUriAt>> {
+    let offset = if text.starts_with(BOM) { BOM.len() } else { 0 };
+    let mut found = Vec::new();
+    for token in Tokenizer::from(&text[offset..]) {
+        if let Token::Attribute { value, .. } = token.map_err(|e| anyhow!("invalid XML: {e}"))?
+            && let Some(uri) = unescape(value.as_str()).and_then(|v| parse_data_uri(&v))
+        {
+            found.push(DataUriAt {
+                range: offset + value.start()..offset + value.end(),
+                prefix: uri.prefix,
+                mime: uri.mime,
+                bytes: uri.bytes,
+            });
+        }
+    }
+    Ok(found)
+}
+
+struct DataUriAt {
+    range: Range<usize>,
+    prefix: String,
+    mime: String,
+    bytes: Vec<u8>,
+}
+
+/// (type, bytes) of every embedded raster image, in document order.
+fn embedded_images(text: &str) -> Result<Vec<(String, Vec<u8>)>> {
+    let doc = parse(text)?;
+    Ok(doc
+        .descendants()
+        .flat_map(|n| n.attributes())
+        .filter_map(|a| parse_data_uri(a.value()))
+        .map(|u| (u.mime, u.bytes))
+        .collect())
 }
 
 // ------------------------------------------------------------------- clean
@@ -345,7 +497,14 @@ fn write_children(node: roxmltree::Node, preserve: bool, out: &mut String) {
                 let mut attrs: Vec<String> = child
                     .attributes()
                     .filter(|a| !a.namespace().is_some_and(is_editor_ns))
-                    .map(|a| format!("{:?}{:?}={:?}", a.namespace().unwrap_or_default(), a.name(), a.value()))
+                    .map(|a| {
+                        // Embedded images are compared separately, by their own verifier.
+                        let value = match parse_data_uri(a.value()) {
+                            Some(uri) => format!("embedded {}", uri.mime),
+                            None => a.value().to_string(),
+                        };
+                        format!("{:?}{:?}={value:?}", a.namespace().unwrap_or_default(), a.name())
+                    })
                     .collect();
                 attrs.sort();
                 out.push_str(&format!("E{:?}{:?}[{}](", name.namespace().unwrap_or_default(), name.name(), attrs.join(",")));
@@ -494,6 +653,94 @@ mod tests {
             assert!(result.is_err());
         }
         assert!(Svg.verify(original.clone(), original).await.is_ok());
+    }
+
+    fn bloated_png(shift: u8) -> Vec<u8> {
+        use image::{ExtendedColorType, ImageEncoder, codecs::png::{CompressionType, FilterType, PngEncoder}};
+        let rgba: Vec<u8> = (0..64u32 * 64)
+            .flat_map(|i| [(i % 64) as u8 * 4, ((i / 64) as u8 * 4).wrapping_add(shift), 120, 255])
+            .collect();
+        let mut out = Vec::new();
+        PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::NoFilter)
+            .write_image(&rgba, 64, 64, ExtendedColorType::Rgba8)
+            .unwrap();
+        out
+    }
+
+    fn b64(bytes: &[u8]) -> String {
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    }
+
+    /// Two embedded PNGs: one plain, one with the base64 wrapped by `&#10;`
+    /// line breaks the way Illustrator writes it.
+    fn svg_with_images(first: &[u8], second: &[u8]) -> String {
+        let wrapped = b64(second).as_bytes().chunks(76).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join("&#10;");
+        format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 128 64"><image width="64" height="64" href="data:image/png;base64,{}"/><image x="64" width="64" height="64" xlink:href="data:image/png;base64,{wrapped}"/></svg>"#,
+            b64(first)
+        )
+    }
+
+    #[tokio::test]
+    async fn embedded_images_are_optimized_and_verified() {
+        let svg = svg_with_images(&bloated_png(0), &bloated_png(9));
+        let out = optimize(&svg).await;
+        assert!(out.len() < svg.len() / 2, "{} -> {}", svg.len(), out.len());
+        assert!(!out.contains("&#10;"));
+        let (before, after) = (embedded_images(&svg).unwrap(), embedded_images(&out).unwrap());
+        assert_eq!(after.len(), 2);
+        for ((_, a), (mime, b)) in before.iter().zip(&after) {
+            assert_eq!(mime, "image/png");
+            assert!(b.len() < a.len());
+            crate::optimizers::verify::same_pixels(a, b, image::ImageFormat::Png).unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn verifier_rejects_a_changed_embedded_image() {
+        let mut img = image::load_from_memory(&bloated_png(9)).unwrap().to_rgba8();
+        img.put_pixel(3, 3, image::Rgba([0, 0, 0, 255]));
+        let mut altered_png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut altered_png), image::ImageFormat::Png).unwrap();
+
+        let original = svg_with_images(&bloated_png(0), &bloated_png(9));
+        let altered = svg_with_images(&bloated_png(0), &altered_png);
+        let result = Svg.verify(Arc::new(original.into_bytes()), Arc::new(altered.into_bytes())).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn lossy_or_disabled_embedded_images_are_left_alone() {
+        let rgba: Vec<u8> = (0..32u32 * 32).flat_map(|i| [i as u8, (i / 3) as u8, 7, 255]).collect();
+        let lossy = unsafe {
+            let mut out = std::ptr::null_mut();
+            let len = libwebp_sys::WebPEncodeRGBA(rgba.as_ptr(), 32, 32, 32 * 4, 80.0, &mut out);
+            let bytes = std::slice::from_raw_parts(out, len).to_vec();
+            libwebp_sys::WebPFree(out as *mut std::ffi::c_void);
+            bytes
+        };
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><image width="32" height="32" href="data:image/webp;base64,{}"/></svg>"#,
+            b64(&lossy)
+        );
+        let outcome = process(&Svg, Arc::new(svg.into_bytes()), &Settings::default()).await;
+        assert!(matches!(outcome, Outcome::Optimal(_)), "{outcome:?}");
+
+        let svg = svg_with_images(&bloated_png(0), &bloated_png(9));
+        let mut settings = Settings::default();
+        settings.optimizers.insert("oxipng".into(), false);
+        let outcome = process(&Svg, Arc::new(svg.into_bytes()), &settings).await;
+        assert!(matches!(outcome, Outcome::Optimal(_)), "PNG optimizer is off: {outcome:?}");
+    }
+
+    #[test]
+    fn data_uris_are_parsed_strictly() {
+        assert!(parse_data_uri("data:image/png;base64,iVBORw0KGgo=").is_some());
+        assert!(parse_data_uri("data:image/svg+xml;base64,PHN2Zz4=").is_none());
+        assert!(parse_data_uri("data:image/png,raw-not-base64").is_none());
+        assert!(parse_data_uri("url(data:image/png;base64,iVBORw0KGgo=)").is_none());
+        assert_eq!(unescape("a&#10;b&amp;c&#x41;").unwrap(), "a\nb&cA");
+        assert!(unescape("&custom;").is_none());
     }
 
     #[test]
