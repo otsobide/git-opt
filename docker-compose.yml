@@ -1,0 +1,23 @@
+services:
+  git-opt:
+    build: .
+    image: git-opt:latest
+    container_name: git-opt
+    restart: unless-stopped
+    ports:
+      # Only reachable from this machine; put a reverse proxy in front to expose it.
+      - "127.0.0.1:8484:8484"
+    environment:
+      # PRs are opened with this token, i.e. in your name: GITHUB_TOKEN=$(gh auth token)
+      # It can also be set later from the web UI (Ajustes).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Protects the web UI/API. Strongly recommended if the port is exposed.
+      GIT_OPT_ADMIN_TOKEN: ${GIT_OPT_ADMIN_TOKEN:-}
+    volumes:
+      - git-opt-data:/data
+      # Optional: reuse your git identity (user.name / user.email) for commits.
+      # Without it, the author can be set in the UI or defaults to your GitHub account.
+      # - ${HOME}/.gitconfig:/home/gitopt/.gitconfig:ro
+
+volumes:
+  git-opt-data:
