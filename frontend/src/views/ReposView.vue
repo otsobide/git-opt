@@ -209,7 +209,7 @@ const checkAll = () => run('all', api.checkAll, 'All repositories queued for a c
             </td>
             <td data-label="Next check" class="nowrap">
               {{ nextCheck(r) }}
-              <div v-if="r.last_checked_at" class="hint">last {{ formatRelative(r.last_checked_at, now) }}</div>
+              <div v-if="r.last_checked_at" class="hint">checked {{ formatRelative(r.last_checked_at, now) }}</div>
             </td>
             <td class="actions">
               <button
