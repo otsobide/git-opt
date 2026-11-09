@@ -47,7 +47,7 @@ pub fn pr_body(files: &[FileReport]) -> String {
         percent(before, after),
     ));
     body.push_str(
-        "Every image decodes to **exactly the same pixels** as before: only the encoding changed. \
+        "Every image renders to **exactly the same pixels** as before: only the encoding changed. \
          Each result was decoded and compared pixel by pixel against the original before committing.\n\n",
     );
     body.push_str("| File | Before | After | Saved |\n|:--|--:|--:|--:|\n");
@@ -76,6 +76,9 @@ pub fn pr_body(files: &[FileReport]) -> String {
     }
     if used("ico") {
         body.push_str("- **ICO/CUR**: embedded PNG images recompressed with oxipng, keeping their pixel format; BMP images untouched.\n");
+    }
+    if used("svg") {
+        body.push_str("- **SVG**: only comments (license notices are kept), editor metadata (Inkscape, Illustrator, Sketch…) and whitespace between tags were removed; paths, numbers, ids, classes and styles are untouched. Verified by comparing the XML trees and the rendered pixels.\n");
     }
     if used("gifsicle") {
         body.push_str("- **GIF**: `gifsicle -O3`, without `--lossy`.\n");

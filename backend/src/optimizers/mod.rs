@@ -11,6 +11,7 @@ mod gif;
 mod ico;
 mod jpeg;
 mod png;
+mod svg;
 mod verify;
 mod webp;
 
@@ -81,6 +82,7 @@ impl Registry {
             Arc::new(gif::Gifsicle),
             Arc::new(webp::Webp),
             Arc::new(ico::Ico),
+            Arc::new(svg::Svg),
         ];
         let registry = Arc::new(Self { available: RwLock::new(Vec::new()), optimizers });
         registry.refresh().await;
