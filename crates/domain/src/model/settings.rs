@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::values::{BranchName, ByteSize, IgnoreRules, Identity, OptimizerId, PollPolicy, SavingsThreshold};
 
 /// Options handed to format strategies: only what affects their output.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CodecOptions {
     /// oxipng preset, 0 (fastest) to 6 (smallest).
     pub png_level: u8,
@@ -12,6 +12,8 @@ pub struct CodecOptions {
     pub strip_metadata: bool,
     /// Optimizer id -> enabled; missing ids use the strategy's default.
     pub enabled: BTreeMap<String, bool>,
+    /// Minimum gain worth a change (also for nested files, e.g. SVG images).
+    pub threshold: SavingsThreshold,
 }
 
 impl Default for CodecOptions {
@@ -115,6 +117,7 @@ impl Settings {
             png_zopfli: self.png_zopfli,
             strip_metadata: self.strip_metadata,
             enabled: self.optimizers.clone(),
+            threshold: self.threshold(),
         }
     }
 

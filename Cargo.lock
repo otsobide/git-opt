@@ -798,6 +798,7 @@ dependencies = [
  "chrono",
  "globset",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
