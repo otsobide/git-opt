@@ -4,6 +4,7 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { api, adminToken, authRequired } from '@/api'
 import { usePolling } from '@/composables/usePolling'
 import { useStatus } from '@/composables/useStatus'
+import { useTheme, type Theme } from '@/composables/useTheme'
 import BrandMark from '@/components/BrandMark.vue'
 import LoginGate from '@/components/LoginGate.vue'
 import ToastHost from '@/components/ToastHost.vue'
@@ -31,6 +32,13 @@ const nav = [
   { to: '/sources', label: 'Sources' },
   { to: '/activity', label: 'Activity' },
   { to: '/settings', label: 'Settings' },
+]
+
+const { theme } = useTheme()
+const themes: { value: Theme; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
 ]
 
 const route = useRoute()
@@ -72,6 +80,19 @@ const jobsText = computed(() =>
           <p v-if="github?.ok && github.login" class="muted">PRs as <strong>@{{ github.login }}</strong></p>
           <p v-else class="tag warn">No GitHub access</p>
         </template>
+        <div class="theme" role="radiogroup" aria-label="Color theme">
+          <button
+            v-for="t in themes"
+            :key="t.value"
+            type="button"
+            role="radio"
+            :aria-checked="theme === t.value"
+            :class="{ on: theme === t.value }"
+            @click="theme = t.value"
+          >
+            {{ t.label }}
+          </button>
+        </div>
       </div>
     </aside>
     <main class="content">
@@ -132,6 +153,37 @@ nav {
 .whoami strong {
   color: var(--ink);
   font-weight: 500;
+}
+.theme {
+  display: flex;
+  margin-top: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  width: fit-content;
+}
+.theme button {
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 0.2rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme button + button {
+  border-left: 1px solid var(--line);
+}
+.theme button:hover {
+  color: var(--ink);
+}
+.theme button.on {
+  background: var(--surface);
+  color: var(--ink);
+}
+.theme button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
 }
 .content {
   padding: 2rem clamp(1rem, 3vw, 2.5rem) 4rem;
