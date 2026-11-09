@@ -90,6 +90,17 @@ impl Settings {
         self
     }
 
+    /// What format strategies need to know.
+    pub fn codec_options(&self) -> git_opt_domain::model::CodecOptions {
+        git_opt_domain::model::CodecOptions {
+            png_level: self.png_level,
+            png_zopfli: self.png_zopfli,
+            strip_metadata: self.strip_metadata,
+            enabled: self.optimizers.clone(),
+            threshold: git_opt_domain::values::SavingsThreshold::new(self.min_savings_percent, self.min_savings_bytes),
+        }
+    }
+
     pub fn optimizer_enabled(&self, id: &str, default: bool) -> bool {
         self.optimizers.get(id).copied().unwrap_or(default)
     }

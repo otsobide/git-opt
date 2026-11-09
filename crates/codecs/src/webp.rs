@@ -14,27 +14,32 @@ use async_trait::async_trait;
 use image::ImageFormat;
 use libwebp_sys as ffi;
 
-use super::{Optimizer, verify};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::FormatStrategy,
+    values::{FileFormat, Profile},
+};
+
+use crate::verify;
 
 pub struct Webp;
 
 #[async_trait]
-impl Optimizer for Webp {
+impl FormatStrategy for Webp {
     fn id(&self) -> &'static str {
         "webp"
     }
     fn label(&self) -> &'static str {
         "WebP lossless (libwebp)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::WebP]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["webp"]
+    fn explanation(&self) -> &'static str {
+        "**WebP**: lossless files only, re-encoded with libwebp at maximum effort (`-lossless -z 9 -exact`); ICC, EXIF and XMP chunks are kept."
     }
-    fn profile(&self, _: &Settings) -> String {
-        "libwebp:lossless:z9:exact".into()
+    fn profile(&self, _: &CodecOptions) -> Profile {
+        Profile::new("libwebp:lossless:z9:exact")
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
@@ -42,7 +47,7 @@ impl Optimizer for Webp {
         Ok(format!("built-in libwebp {}.{}.{}", (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff))
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, _: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, _: &CodecOptions) -> Result<Vec<u8>> {
         tokio::task::spawn_blocking(move || recompress(&input, 9)).await?
     }
 

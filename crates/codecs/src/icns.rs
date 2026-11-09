@@ -11,36 +11,41 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 
-use super::{Optimizer, png};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::FormatStrategy,
+    values::{FileFormat, Profile},
+};
+
+use crate::png;
 
 const TOC: [u8; 4] = *b"TOC ";
 
 pub struct Icns;
 
 #[async_trait]
-impl Optimizer for Icns {
+impl FormatStrategy for Icns {
     fn id(&self) -> &'static str {
         "icns"
     }
     fn label(&self) -> &'static str {
         "ICNS (embedded PNGs)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::Icns]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["icns"]
+    fn explanation(&self) -> &'static str {
+        "**ICNS**: embedded PNG images recompressed with oxipng, keeping their pixel format; every other element untouched."
     }
-    fn profile(&self, s: &Settings) -> String {
-        format!("icns:{}", png::keep_format_profile(s))
+    fn profile(&self, s: &CodecOptions) -> Profile {
+        Profile::new(format!("icns:{}", png::keep_format_profile(s)))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         Ok("built-in, oxipng on embedded PNGs".into())
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, s: &CodecOptions) -> Result<Vec<u8>> {
         let opts = png::keep_format_options(s);
         tokio::task::spawn_blocking(move || {
             let elements = parse(&input)?;

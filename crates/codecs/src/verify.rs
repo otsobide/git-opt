@@ -1,12 +1,22 @@
 //! Pixel-exact comparison used to prove an optimization is lossless.
 
+// Builds with only some formats leave some helpers unused.
+#![cfg_attr(
+    not(all(feature = "png", feature = "jpeg", feature = "gif", feature = "webp")),
+    allow(dead_code, unused_imports)
+)]
+
+#[cfg(any(feature = "gif", feature = "png"))]
 use std::io::Cursor;
 
 use anyhow::{Context, Result, bail, ensure};
-use image::{
-    AnimationDecoder, DynamicImage, Frames, ImageFormat,
-    codecs::{gif::GifDecoder, png::PngDecoder},
-};
+#[cfg(feature = "gif")]
+use image::codecs::gif::GifDecoder;
+#[cfg(feature = "png")]
+use image::codecs::png::PngDecoder;
+#[cfg(any(feature = "gif", feature = "png"))]
+use image::{AnimationDecoder, Frames};
+use image::{DynamicImage, ImageFormat};
 
 fn decode(bytes: &[u8], format: ImageFormat) -> Result<DynamicImage> {
     image::load_from_memory_with_format(bytes, format).with_context(|| format!("cannot decode {format:?}"))
@@ -37,12 +47,14 @@ pub fn same_pixels(original: &[u8], candidate: &[u8], format: ImageFormat) -> Re
 }
 
 /// Every composited animation frame and its delay are identical.
+#[cfg(feature = "gif")]
 pub fn same_gif_frames(original: &[u8], candidate: &[u8]) -> Result<()> {
     let a = GifDecoder::new(Cursor::new(original)).context("cannot decode original gif")?;
     let b = GifDecoder::new(Cursor::new(candidate)).context("cannot decode optimized gif")?;
     same_frames(a.into_frames(), b.into_frames())
 }
 
+#[cfg(feature = "png")]
 /// For an animated PNG: same default image, same animation control (frame
 /// count and loop count) and identical composited frames with their delays.
 pub fn same_apng(original: &[u8], candidate: &[u8]) -> Result<()> {
@@ -58,6 +70,7 @@ pub fn same_apng(original: &[u8], candidate: &[u8]) -> Result<()> {
 }
 
 /// Payload of the first PNG chunk of the given type.
+#[cfg(feature = "png")]
 pub fn png_chunk<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
     let mut pos = 8; // signature
     while pos + 8 <= data.len() {
@@ -72,6 +85,7 @@ pub fn png_chunk<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
     None
 }
 
+#[cfg(any(feature = "gif", feature = "png"))]
 fn same_frames(mut fa: Frames<'_>, mut fb: Frames<'_>) -> Result<()> {
     let mut index = 0usize;
     loop {

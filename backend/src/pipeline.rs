@@ -5,6 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
+use git_opt_domain::ports::FormatStrategy;
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use serde::Serialize;
 
@@ -14,7 +15,7 @@ use crate::{
     git::{Git, GitAuth, Identity, TreeEntry, url_prefix},
     github::{ApiRepo, parse_repo_ref},
     models::{NewRepo, Repo, RepoMode, RunTrigger},
-    optimizers::{self, Optimizer, Outcome},
+    optimizers::{self, Outcome},
     report::{self, FileReport},
     settings::Settings,
 };
@@ -39,7 +40,7 @@ pub enum IdentitySource {
 
 struct Candidate {
     entry: TreeEntry,
-    optimizer: Arc<dyn Optimizer>,
+    optimizer: Arc<dyn FormatStrategy>,
     profile: String,
     cached_blob: Option<String>,
 }
@@ -372,7 +373,7 @@ async fn find_candidates(
         {
             continue;
         }
-        let profile = optimizer.profile(settings);
+        let profile = optimizer.profile(&settings.codec_options()).to_string();
         let cached = app.db.cache_get(&entry.sha, &profile).await?;
         if cached.as_ref().is_some_and(|c| c.result != "optimized") {
             continue;

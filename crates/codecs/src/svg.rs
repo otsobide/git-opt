@@ -36,8 +36,12 @@ use base64::Engine;
 use resvg::{tiny_skia, usvg};
 use xmlparser::{ElementEnd, EntityDefinition, Token, Tokenizer};
 
-use super::{Optimizer, Outcome, gif, jpeg, png, process, webp};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::{FormatStrategy, Outcome, attempt},
+    values::{FileFormat, Profile},
+};
+
 
 const XML_NS: &str = "http://www.w3.org/XML/1998/namespace";
 const BOM: &str = "\u{feff}";
@@ -82,36 +86,59 @@ fn is_xml_whitespace(s: &str) -> bool {
     s.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
 }
 
-pub struct Svg;
+/// Needs the raster strategies to optimize embedded images (injected, so any
+/// PNG/JPEG/WebP/GIF implementation can be used).
+pub struct Svg {
+    raster: Vec<Arc<dyn FormatStrategy>>,
+}
+
+impl Svg {
+    pub fn new(raster: Vec<Arc<dyn FormatStrategy>>) -> Self {
+        Self { raster }
+    }
+
+    /// The strategy for an embedded image's media type.
+    fn embedded(&self, media_type: &str) -> Option<&Arc<dyn FormatStrategy>> {
+        let format = FileFormat::from_media_type(media_type)?;
+        self.raster.iter().find(|s| s.handles(format))
+    }
+}
 
 #[async_trait]
-impl Optimizer for Svg {
+impl FormatStrategy for Svg {
     fn id(&self) -> &'static str {
         "svg"
     }
     fn label(&self) -> &'static str {
         "SVG (safe cleanup)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::Svg]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["svg"]
+    fn explanation(&self) -> &'static str {
+        "**SVG**: only comments (license notices are kept), editor metadata (Inkscape, Illustrator, Sketch…) and whitespace between tags were removed, and embedded PNG/JPEG/WebP/GIF images were optimized losslessly; paths, numbers, ids, classes and styles are untouched. Verified by comparing the XML trees, each embedded image and the rendered pixels."
     }
-    fn profile(&self, s: &Settings) -> String {
-        // Embedded images make the output depend on the raster optimizers too.
-        let embedded: Vec<String> = EMBEDDED
+    fn profile(&self, s: &CodecOptions) -> Profile {
+        // Embedded images make the output depend on the raster strategies too.
+        let embedded: Vec<String> = self
+            .raster
             .iter()
-            .map(|o| if s.optimizer_enabled(o.id(), o.enabled_by_default()) { o.profile(s) } else { format!("{}:off", o.id()) })
+            .map(|o| {
+                if s.is_enabled(&o.optimizer_id(), o.enabled_by_default()) {
+                    o.profile(s).to_string()
+                } else {
+                    format!("{}:off", o.id())
+                }
+            })
             .collect();
-        format!("svg-clean:v2+{}", embedded.join("+"))
+        Profile::new(format!("svg-clean:v2+{}", embedded.join("+")))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         Ok("built-in, verified with resvg".into())
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, s: &CodecOptions) -> Result<Vec<u8>> {
         let mut text = tokio::task::spawn_blocking(move || {
             let text = std::str::from_utf8(&input).context("SVG is not UTF-8")?;
             clean(text)
@@ -120,11 +147,11 @@ impl Optimizer for Svg {
 
         // Replace from the end so earlier ranges stay valid.
         for uri in data_uris(&text)?.into_iter().rev() {
-            let Some(optimizer) = embedded_optimizer(&uri.mime) else { continue };
-            if !s.optimizer_enabled(optimizer.id(), optimizer.enabled_by_default()) {
+            let Some(optimizer) = self.embedded(&uri.mime) else { continue };
+            if !s.is_enabled(&optimizer.optimizer_id(), optimizer.enabled_by_default()) {
                 continue;
             }
-            if let Outcome::Optimized(bytes) = process(optimizer, Arc::new(uri.bytes), s).await {
+            if let Outcome::Optimized(bytes) = attempt(optimizer.as_ref(), Arc::new(uri.bytes), s).await {
                 let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
                 text.replace_range(uri.range, &format!("{}{encoded}", escape_attr(&uri.prefix)));
             }
@@ -155,7 +182,7 @@ impl Optimizer for Svg {
         .await??;
 
         for (index, (mime, before, after)) in changed.into_iter().enumerate() {
-            let optimizer = embedded_optimizer(&mime).ok_or_else(|| anyhow!("unexpected embedded {mime}"))?;
+            let optimizer = self.embedded(&mime).ok_or_else(|| anyhow!("unexpected embedded {mime}"))?;
             optimizer
                 .verify(Arc::new(before), Arc::new(after))
                 .await
@@ -166,20 +193,6 @@ impl Optimizer for Svg {
 }
 
 // --------------------------------------------------------- embedded images
-
-/// Raster optimizers reused for images embedded as data URIs.
-const EMBEDDED: [&dyn Optimizer; 4] = [&png::Oxipng, &jpeg::Mozjpeg, &webp::Webp, &gif::Gifsicle];
-
-fn embedded_optimizer(mime: &str) -> Option<&'static dyn Optimizer> {
-    let id = match mime {
-        "image/png" => "oxipng",
-        "image/jpeg" | "image/jpg" => "mozjpeg",
-        "image/webp" => "webp",
-        "image/gif" => "gifsicle",
-        _ => return None,
-    };
-    EMBEDDED.iter().copied().find(|o| o.id() == id)
-}
 
 /// A whole attribute value of the form `data:image/<type>[;…];base64,<data>`.
 struct DataUri {
@@ -194,7 +207,7 @@ fn parse_data_uri(value: &str) -> Option<DataUri> {
     let (meta, payload) = rest.split_once(',')?;
     let lower = meta.to_ascii_lowercase();
     let mime = lower.strip_suffix(";base64")?.split(';').next()?.to_string();
-    embedded_optimizer(&mime)?;
+    FileFormat::from_media_type(&mime)?;
     let compact: String = payload.chars().filter(|c| !c.is_ascii_whitespace()).collect();
     let bytes = base64::engine::general_purpose::STANDARD.decode(compact).ok()?;
     Some(DataUri { prefix: format!("data:{meta},"), mime, bytes })
@@ -537,7 +550,15 @@ fn render(svg: &[u8]) -> Result<tiny_skia::Pixmap> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::optimizers::{Outcome, process};
+    use git_opt_domain::values::SavingsThreshold;
+
+    fn svg() -> Svg {
+        Svg::new(crate::raster_strategies())
+    }
+
+    fn any_gain() -> CodecOptions {
+        CodecOptions { threshold: SavingsThreshold::any_reduction(), ..CodecOptions::default() }
+    }
 
     const INKSCAPE: &str = r##"<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
@@ -603,8 +624,7 @@ mod tests {
 "##;
 
     async fn optimize(svg: &str) -> String {
-        let settings = Settings { min_savings_bytes: 1, min_savings_percent: 0.0, ..Settings::default() };
-        match process(&Svg, Arc::new(svg.as_bytes().to_vec()), &settings).await {
+        match attempt(&self::svg(), Arc::new(svg.as_bytes().to_vec()), &any_gain()).await {
             Outcome::Optimized(out) => String::from_utf8(out).unwrap(),
             other => panic!("expected optimization, got {other:?}"),
         }
@@ -636,7 +656,7 @@ mod tests {
     #[tokio::test]
     async fn already_clean_svg_is_left_alone() {
         let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><path d="M0 0h8v8z"/></svg>"#;
-        let outcome = process(&Svg, Arc::new(svg.as_bytes().to_vec()), &Settings::default()).await;
+        let outcome = attempt(&self::svg(), Arc::new(svg.as_bytes().to_vec()), &CodecOptions::default()).await;
         assert!(matches!(outcome, Outcome::Optimal(_)), "{outcome:?}");
     }
 
@@ -649,10 +669,10 @@ mod tests {
             INKSCAPE.replace("<tspan>Hello</tspan>   <tspan>", "<tspan>Hello</tspan> <tspan>"),
             INKSCAPE.replace("<!-- Copyright 2026 Example Corp. Licensed under MIT. -->", ""),
         ] {
-            let result = Svg.verify(original.clone(), Arc::new(altered.into_bytes())).await;
+            let result = svg().verify(original.clone(), Arc::new(altered.into_bytes())).await;
             assert!(result.is_err());
         }
-        assert!(Svg.verify(original.clone(), original).await.is_ok());
+        assert!(svg().verify(original.clone(), original).await.is_ok());
     }
 
     fn bloated_png(shift: u8) -> Vec<u8> {
@@ -692,7 +712,7 @@ mod tests {
         for ((_, a), (mime, b)) in before.iter().zip(&after) {
             assert_eq!(mime, "image/png");
             assert!(b.len() < a.len());
-            crate::optimizers::verify::same_pixels(a, b, image::ImageFormat::Png).unwrap();
+            crate::verify::same_pixels(a, b, image::ImageFormat::Png).unwrap();
         }
     }
 
@@ -705,7 +725,7 @@ mod tests {
 
         let original = svg_with_images(&bloated_png(0), &bloated_png(9));
         let altered = svg_with_images(&bloated_png(0), &altered_png);
-        let result = Svg.verify(Arc::new(original.into_bytes()), Arc::new(altered.into_bytes())).await;
+        let result = svg().verify(Arc::new(original.into_bytes()), Arc::new(altered.into_bytes())).await;
         assert!(result.is_err());
     }
 
@@ -723,13 +743,13 @@ mod tests {
             r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><image width="32" height="32" href="data:image/webp;base64,{}"/></svg>"#,
             b64(&lossy)
         );
-        let outcome = process(&Svg, Arc::new(svg.into_bytes()), &Settings::default()).await;
+        let outcome = attempt(&self::svg(), Arc::new(svg.into_bytes()), &CodecOptions::default()).await;
         assert!(matches!(outcome, Outcome::Optimal(_)), "{outcome:?}");
 
         let svg = svg_with_images(&bloated_png(0), &bloated_png(9));
-        let mut settings = Settings::default();
-        settings.optimizers.insert("oxipng".into(), false);
-        let outcome = process(&Svg, Arc::new(svg.into_bytes()), &settings).await;
+        let mut settings = CodecOptions::default();
+        settings.enabled.insert("oxipng".into(), false);
+        let outcome = attempt(&self::svg(), Arc::new(svg.into_bytes()), &settings).await;
         assert!(matches!(outcome, Outcome::Optimal(_)), "PNG optimizer is off: {outcome:?}");
     }
 

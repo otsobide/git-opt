@@ -5,34 +5,39 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use super::{Optimizer, external, verify};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::FormatStrategy,
+    values::{FileFormat, Profile},
+};
+
+use crate::{external, verify};
 
 pub struct Gifsicle;
 
 #[async_trait]
-impl Optimizer for Gifsicle {
+impl FormatStrategy for Gifsicle {
     fn id(&self) -> &'static str {
         "gifsicle"
     }
     fn label(&self) -> &'static str {
         "GIF (gifsicle)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::Gif]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["gif"]
+    fn explanation(&self) -> &'static str {
+        "**GIF**: `gifsicle -O3`, without `--lossy`."
     }
-    fn profile(&self, _: &Settings) -> String {
-        "gifsicle:O3".into()
+    fn profile(&self, _: &CodecOptions) -> Profile {
+        Profile::new("gifsicle:O3")
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         external::probe_version("gifsicle", &["--version"]).await
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, _: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, _: &CodecOptions) -> Result<Vec<u8>> {
         external::run_on_bytes("gifsicle", &["--optimize=3", "--no-warnings", "-o", "{out}", "{in}"], &input, "gif")
             .await
     }

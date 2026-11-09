@@ -7,34 +7,39 @@ use async_trait::async_trait;
 use image::ImageFormat;
 use oxipng::{Deflater, Options, StripChunks, ZopfliOptions};
 
-use super::{Optimizer, verify};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::FormatStrategy,
+    values::{FileFormat, Profile},
+};
+
+use crate::verify;
 
 pub struct Oxipng;
 
 #[async_trait]
-impl Optimizer for Oxipng {
+impl FormatStrategy for Oxipng {
     fn id(&self) -> &'static str {
         "oxipng"
     }
     fn label(&self) -> &'static str {
         "PNG and APNG (oxipng)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::Png]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["png"]
+    fn explanation(&self) -> &'static str {
+        "**PNG/APNG**: re-compressed with [oxipng](https://github.com/shssoichiro/oxipng) (filters, deflate, lossless color-type reduction; every animation frame)."
     }
-    fn profile(&self, s: &Settings) -> String {
-        format!("oxipng10:l{}:strip{}:zopfli{}", s.png_level, u8::from(s.strip_metadata), u8::from(s.png_zopfli))
+    fn profile(&self, s: &CodecOptions) -> Profile {
+        Profile::new(format!("oxipng10:l{}:strip{}:zopfli{}", s.png_level, u8::from(s.strip_metadata), u8::from(s.png_zopfli)))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         Ok("built-in oxipng 10".into())
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, s: &CodecOptions) -> Result<Vec<u8>> {
         let mut opts = Options::from_preset(s.png_level);
         opts.strip = if s.strip_metadata { StripChunks::Safe } else { StripChunks::None };
         // Keep RGB of fully transparent pixels: pixel-exact, not just visually equal.
@@ -64,12 +69,14 @@ pub(super) fn is_apng(data: &[u8]) -> bool {
     verify::png_chunk(data, b"acTL").is_some()
 }
 
+#[cfg(any(feature = "ico", feature = "icns"))]
 pub(super) const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 
+#[cfg(any(feature = "ico", feature = "icns"))]
 /// oxipng settings for PNGs embedded in containers (icons): recompress
 /// without changing the pixel format (IHDR), because some readers only
 /// accept the format they wrote.
-pub(super) fn keep_format_options(s: &Settings) -> Options {
+pub(super) fn keep_format_options(s: &CodecOptions) -> Options {
     let mut opts = Options::from_preset(s.png_level);
     opts.color_type_reduction = false;
     opts.bit_depth_reduction = false;
@@ -86,16 +93,19 @@ pub(super) fn keep_format_options(s: &Settings) -> Options {
     opts
 }
 
-pub(super) fn keep_format_profile(s: &Settings) -> String {
+#[cfg(any(feature = "ico", feature = "icns"))]
+pub(super) fn keep_format_profile(s: &CodecOptions) -> String {
     format!("oxipng10:l{}:zopfli{}:keep-ihdr", s.png_level, u8::from(s.png_zopfli))
 }
 
+#[cfg(any(feature = "ico", feature = "icns"))]
 /// Recompresses an embedded PNG; returns the input unchanged if not smaller.
 pub(super) fn recompress_keep_format(data: &[u8], opts: &Options) -> Result<Vec<u8>> {
     let smaller = oxipng::optimize_from_memory(data, opts)?;
     Ok(if smaller.len() < data.len() { smaller } else { data.to_vec() })
 }
 
+#[cfg(any(feature = "ico", feature = "icns"))]
 /// The embedded PNG kept its pixel format and its pixels.
 pub(super) fn verify_keep_format(original: &[u8], candidate: &[u8]) -> Result<()> {
     anyhow::ensure!(candidate.starts_with(SIGNATURE), "no longer a PNG");

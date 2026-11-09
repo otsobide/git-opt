@@ -31,34 +31,39 @@ use mozjpeg_sys::{
     jpeg_std_error, jpeg_write_coefficients,
 };
 
-use super::{Optimizer, verify};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::FormatStrategy,
+    values::{FileFormat, Profile},
+};
+
+use crate::verify;
 
 pub struct Mozjpeg;
 
 #[async_trait]
-impl Optimizer for Mozjpeg {
+impl FormatStrategy for Mozjpeg {
     fn id(&self) -> &'static str {
         "mozjpeg"
     }
     fn label(&self) -> &'static str {
         "JPEG (mozjpeg)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::Jpeg]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["jpg", "jpeg", "jpe", "jfif"]
+    fn explanation(&self) -> &'static str {
+        "**JPEG**: lossless transcode with [mozjpeg](https://github.com/mozilla/mozjpeg) (like `jpegtran -copy all -optimize -progressive`): optimized Huffman tables and scans; DCT coefficients and all metadata (EXIF, ICC, XMP) are untouched."
     }
-    fn profile(&self, _: &Settings) -> String {
-        "mozjpeg4:copyall:best-of-progressive-baseline".into()
+    fn profile(&self, _: &CodecOptions) -> Profile {
+        Profile::new("mozjpeg4:copyall:best-of-progressive-baseline")
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         Ok("built-in mozjpeg 4".into())
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, _: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, _: &CodecOptions) -> Result<Vec<u8>> {
         tokio::task::spawn_blocking(move || {
             let progressive = transcode(&input, true)?;
             let baseline = transcode(&input, false)?;

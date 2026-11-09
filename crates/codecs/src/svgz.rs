@@ -12,47 +12,61 @@ use std::{io::Read, sync::Arc};
 use anyhow::{Context, Result, ensure};
 use async_trait::async_trait;
 
-use super::{Optimizer, svg::Svg};
-use crate::settings::Settings;
+use git_opt_domain::{
+    model::CodecOptions,
+    ports::FormatStrategy,
+    values::{FileFormat, Profile},
+};
+
+use crate::svg::Svg;
 
 /// Refuse to inflate anything bigger than this (decompression bombs).
 const MAX_CONTENT: u64 = 64 << 20;
 /// Above this size Zopfli gets too slow; use zlib's best level instead.
 const ZOPFLI_LIMIT: usize = 8 << 20;
 
-pub struct Svgz;
+/// Wraps the SVG strategy (injected) with gzip handling.
+pub struct Svgz {
+    svg: Arc<Svg>,
+}
+
+impl Svgz {
+    pub fn new(svg: Arc<Svg>) -> Self {
+        Self { svg }
+    }
+}
 
 #[async_trait]
-impl Optimizer for Svgz {
+impl FormatStrategy for Svgz {
     fn id(&self) -> &'static str {
         "svgz"
     }
     fn label(&self) -> &'static str {
         "SVGZ (gzip-compressed SVG)"
     }
-    fn category(&self) -> &'static str {
-        "image"
+    fn formats(&self) -> &'static [FileFormat] {
+        &[FileFormat::Svgz]
     }
-    fn extensions(&self) -> &'static [&'static str] {
-        &["svgz"]
+    fn explanation(&self) -> &'static str {
+        "**SVGZ**: the SVG inside cleaned as above and recompressed with Zopfli; the gzip header (file name, time) is unchanged."
     }
-    fn profile(&self, s: &Settings) -> String {
-        format!("svgz:zopfli:{}", Svg.profile(s))
+    fn profile(&self, s: &CodecOptions) -> Profile {
+        Profile::new(format!("svgz:zopfli:{}", self.svg.profile(s)))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {
         Ok("built-in, SVG cleanup + Zopfli".into())
     }
 
-    async fn optimize(&self, input: Arc<Vec<u8>>, s: &Settings) -> Result<Vec<u8>> {
+    async fn optimize(&self, input: Arc<Vec<u8>>, s: &CodecOptions) -> Result<Vec<u8>> {
         let (gzip, input) = tokio::task::spawn_blocking(move || Gzip::parse(&input).map(|g| (g, input))).await??;
         let original = Arc::new(gzip.content);
 
         // Same rules as a plain .svg; keep the content if the cleanup can't be proven.
-        let content = match Svg.optimize(original.clone(), s).await {
+        let content = match self.svg.optimize(original.clone(), s).await {
             Ok(cleaned) if cleaned != *original => {
                 let cleaned = Arc::new(cleaned);
-                match Svg.verify(original.clone(), cleaned.clone()).await {
+                match self.svg.verify(original.clone(), cleaned.clone()).await {
                     Ok(()) => cleaned,
                     Err(_) => original,
                 }
@@ -80,7 +94,7 @@ impl Optimizer for Svgz {
         })
         .await??;
         if a != b {
-            Svg.verify(Arc::new(a), Arc::new(b)).await.context("compressed SVG")?;
+            self.svg.verify(Arc::new(a), Arc::new(b)).await.context("compressed SVG")?;
         }
         Ok(())
     }
@@ -150,7 +164,14 @@ mod tests {
     use std::io::Write;
 
     use super::*;
-    use crate::optimizers::{Outcome, process};
+    use git_opt_domain::{
+        ports::{Outcome, attempt},
+        values::SavingsThreshold,
+    };
+
+    fn svgz() -> Svgz {
+        Svgz::new(Arc::new(Svg::new(crate::raster_strategies())))
+    }
 
     const INKSCAPE: &str = r##"<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
@@ -193,8 +214,8 @@ mod tests {
     async fn svgz_is_cleaned_recompressed_and_keeps_its_header() {
         let input = gzip(INKSCAPE.as_bytes());
         let header_len = Gzip::parse(&input).unwrap().header_len;
-        let settings = Settings { min_savings_bytes: 1, min_savings_percent: 0.0, ..Settings::default() };
-        match process(&Svgz, Arc::new(input.clone()), &settings).await {
+        let settings = CodecOptions { threshold: SavingsThreshold::any_reduction(), ..CodecOptions::default() };
+        match attempt(&svgz(), Arc::new(input.clone()), &settings).await {
             Outcome::Optimized(out) => {
                 assert!(out.len() < input.len());
                 assert_eq!(out[..header_len], input[..header_len], "file name and time must survive");
@@ -210,8 +231,8 @@ mod tests {
         // Not XML at all: the bytes must come back identical, just packed tighter.
         let content: Vec<u8> = (0..20_000u32).map(|i| b"abcdefgh"[(i * i % 7) as usize]).collect();
         let input = gzip(&content);
-        let settings = Settings { min_savings_bytes: 1, min_savings_percent: 0.0, ..Settings::default() };
-        match process(&Svgz, Arc::new(input.clone()), &settings).await {
+        let settings = CodecOptions { threshold: SavingsThreshold::any_reduction(), ..CodecOptions::default() };
+        match attempt(&svgz(), Arc::new(input.clone()), &settings).await {
             Outcome::Optimized(out) => assert_eq!(gunzip(&out), content),
             other => panic!("expected optimization, got {other:?}"),
         }
@@ -235,11 +256,11 @@ mod tests {
     async fn verifier_rejects_changed_content_or_header() {
         let original = Arc::new(gzip(INKSCAPE.as_bytes()));
         let changed = Arc::new(gzip(INKSCAPE.replace(r#"width="40""#, r#"width="41""#).as_bytes()));
-        assert!(Svgz.verify(original.clone(), changed).await.is_err());
+        assert!(svgz().verify(original.clone(), changed).await.is_err());
         let mut renamed = Vec::new();
         let mut encoder = flate2::GzBuilder::new().filename("other.svg").mtime(1_700_000_000).write(&mut renamed, flate2::Compression::fast());
         encoder.write_all(INKSCAPE.as_bytes()).unwrap();
         encoder.finish().unwrap();
-        assert!(Svgz.verify(original, Arc::new(renamed)).await.is_err());
+        assert!(svgz().verify(original, Arc::new(renamed)).await.is_err());
     }
 }
