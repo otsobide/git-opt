@@ -163,7 +163,7 @@ const remove = (s: Source, deleteRepos: boolean) => {
           <tr v-for="s in sources" :key="s.id">
             <td>
               <strong>{{ s.kind === 'me' ? 'Mis repositorios' : s.name }}</strong>
-              <div class="hint">{{ KIND[s.kind] }}</div>
+              <div class="hint">{{ s.kind === 'me' ? 'Todo lo accesible con el token' : KIND[s.kind] }}</div>
             </td>
             <td class="num">
               <RouterLink to="/repos">{{ s.repo_count }}</RouterLink>
