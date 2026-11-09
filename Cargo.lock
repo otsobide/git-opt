@@ -815,6 +815,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-opt-git-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.23.1",
+ "git-opt-domain",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

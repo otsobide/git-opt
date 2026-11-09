@@ -1,0 +1,18 @@
+[package]
+name = "git-opt-git-cli"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "git-opt adapter: the VersionControl port implemented with the system git binary"
+
+[dependencies]
+git-opt-domain = { path = "../../domain" }
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+base64 = "0.23.1"
+tokio = { version = "1.54.1", features = ["process", "fs", "time", "io-util", "rt", "sync"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
