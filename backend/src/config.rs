@@ -34,15 +34,12 @@ impl Config {
                 .join("git-opt")
         });
 
+        // Explicit dir first, then sensible defaults for a repository checkout.
         let static_dir = env("GIT_OPT_STATIC_DIR")
             .map(PathBuf::from)
-            .or_else(|| {
-                // Sensible defaults when running from the repository checkout.
-                ["frontend/dist", "../frontend/dist"]
-                    .into_iter()
-                    .map(PathBuf::from)
-                    .find(|p| p.join("index.html").is_file())
-            });
+            .into_iter()
+            .chain(["frontend/dist", "../frontend/dist"].map(PathBuf::from))
+            .find(|p| p.join("index.html").is_file());
 
         Ok(Self {
             bind,
