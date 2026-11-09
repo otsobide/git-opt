@@ -39,9 +39,9 @@ const nextUp = computed(() => {
 })
 
 const headline = computed(() => {
-  if (!repos.value.length) return 'Aún no vigilas ningún repositorio'
+  if (!repos.value.length) return 'Not watching any repository yet'
   const n = watched.value
-  return n === 1 ? 'Vigilando 1 repositorio' : `Vigilando ${formatNumber(n)} repositorios`
+  return n === 1 ? 'Watching 1 repository' : `Watching ${formatNumber(n)} repositories`
 })
 
 const paused = computed(() => repos.value.length - watched.value)
@@ -49,9 +49,9 @@ const paused = computed(() => repos.value.length - watched.value)
 const missingOptimizers = computed(() => (status.value?.optimizers ?? []).filter((o) => o.enabled && !o.available))
 
 const identitySource: Record<string, string> = {
-  settings: 'definida en Ajustes',
-  git: 'de git config',
-  github: 'de tu cuenta de GitHub',
+  settings: 'set in Settings',
+  git: 'from git config',
+  github: 'from your GitHub account',
 }
 const identityHint = computed(() => {
   const g = status.value?.git
@@ -60,9 +60,9 @@ const identityHint = computed(() => {
   return source ? `${g.identity.email}, ${source}` : g.identity.email
 })
 const tokenSource: Record<string, string> = {
-  settings: 'token guardado en Ajustes',
-  env: 'token de variable de entorno',
-  gh: 'sesión de gh CLI',
+  settings: 'token saved in Settings',
+  env: 'token from environment variable',
+  gh: 'gh CLI session',
 }
 </script>
 
@@ -71,34 +71,34 @@ const tokenSource: Record<string, string> = {
     <header class="hero">
       <h1>{{ headline }}</h1>
       <p v-if="jobs?.running.length" class="now">
-        Ahora procesa
+        Now processing
         <template v-for="(j, i) in jobs.running" :key="j.repo_id">
-          <span v-if="i > 0">{{ i === jobs.running.length - 1 ? ' y ' : ', ' }}</span>
+          <span v-if="i > 0">{{ i === jobs.running.length - 1 ? ' and ' : ', ' }}</span>
           <RouterLink :to="`/repos/${j.repo_id}`">{{ j.full_name }}</RouterLink>
           <span v-if="j.phase" class="muted"> ({{ j.phase }})</span>
         </template>.
-        <span v-if="jobs.queued.length" class="muted">{{ jobs.queued.length }} más en cola.</span>
+        <span v-if="jobs.queued.length" class="muted">{{ jobs.queued.length }} more queued.</span>
       </p>
       <p v-else-if="nextUp" class="now">
-        Próxima comprobación:
+        Next check:
         <RouterLink :to="`/repos/${nextUp.id}`">{{ nextUp.owner }}/{{ nextUp.name }}</RouterLink>,
         {{ formatRelative(nextUp.next_check_at, now) }}.
-        <span v-if="paused" class="muted">{{ paused }} en pausa.</span>
+        <span v-if="paused" class="muted">{{ paused }} paused.</span>
       </p>
       <p v-else-if="!repos.length && !loading" class="now">
-        Añade un repositorio o una cuenta entera y git-opt empezará a buscar imágenes que comprimir sin perder un solo píxel.
+        Add a repository or a whole account and git-opt will start looking for images it can shrink without changing a single pixel.
       </p>
       <div class="hero-actions">
-        <RouterLink to="/repos" class="btn btn-primary">{{ repos.length ? 'Ver repositorios' : 'Añadir repositorio' }}</RouterLink>
-        <RouterLink v-if="!repos.length" to="/sources" class="btn">Importar usuario u organización</RouterLink>
+        <RouterLink to="/repos" class="btn btn-primary">{{ repos.length ? 'View repositories' : 'Add repository' }}</RouterLink>
+        <RouterLink v-if="!repos.length" to="/sources" class="btn">Import a user or organization</RouterLink>
         <button
           v-else
           type="button"
           class="btn"
           :disabled="busy !== null"
-          @click="run('all', api.checkAll, 'Comprobación de todos los repositorios en cola')"
+          @click="run('all', api.checkAll, 'All repositories queued for a check')"
         >
-          Comprobar todos ahora
+          Check all now
         </button>
       </div>
     </header>
@@ -107,32 +107,32 @@ const tokenSource: Record<string, string> = {
 
     <div v-if="status" class="notices">
       <div v-if="!status.github.ok" class="notice danger">
-        <strong>git-opt no puede hablar con GitHub.</strong>
-        <span>{{ status.github.error || 'No hay token.' }}</span>
+        <strong>git-opt cannot talk to GitHub.</strong>
+        <span>{{ status.github.error || 'No token.' }}</span>
         <span>
-          Define <code>GITHUB_TOKEN</code>, inicia sesión con <code>gh auth login</code> o guarda un token en
-          <RouterLink to="/settings">Ajustes</RouterLink>.
+          Set <code>GITHUB_TOKEN</code>, sign in with <code>gh auth login</code> or save a token in
+          <RouterLink to="/settings">Settings</RouterLink>.
         </span>
       </div>
       <div v-if="status.git.error" class="notice">
-        <strong>Problema con git.</strong>
+        <strong>Problem with git.</strong>
         <span>{{ status.git.error }}</span>
       </div>
       <div v-if="missingOptimizers.length" class="notice">
-        <strong>Faltan herramientas.</strong>
+        <strong>Missing tools.</strong>
         <span v-for="o in missingOptimizers" :key="o.id">
-          {{ o.label }}: {{ o.detail }}. Los archivos {{ o.extensions.map((e) => '.' + e).join(', ') }} se saltan.
+          {{ o.label }}: {{ o.detail }}. {{ o.extensions.map((e) => '.' + e).join(', ') }} files are skipped.
         </span>
       </div>
     </div>
 
     <dl v-if="totals" class="stats">
       <div>
-        <dt>PRs abiertas</dt>
+        <dt>Open PRs</dt>
         <dd>{{ formatNumber(totals.prs_open) }}</dd>
       </div>
       <div :class="{ attention: totals.awaiting_approval > 0 }">
-        <dt>Esperan tu aprobación</dt>
+        <dt>Awaiting approval</dt>
         <dd>
           <RouterLink v-if="totals.awaiting_approval" :to="{ path: '/repos', query: { filter: 'awaiting' } }">
             {{ formatNumber(totals.awaiting_approval) }}
@@ -141,7 +141,7 @@ const tokenSource: Record<string, string> = {
         </dd>
       </div>
       <div :class="{ failing: totals.errors > 0 }">
-        <dt>Con errores</dt>
+        <dt>Failing</dt>
         <dd>
           <RouterLink v-if="totals.errors" :to="{ path: '/repos', query: { filter: 'errors' } }">
             {{ formatNumber(totals.errors) }}
@@ -150,11 +150,11 @@ const tokenSource: Record<string, string> = {
         </dd>
       </div>
       <div>
-        <dt>Ahorrado en PRs fusionadas</dt>
+        <dt>Saved in merged PRs</dt>
         <dd>{{ formatBytes(totals.bytes_saved) }}</dd>
       </div>
       <div>
-        <dt>PRs enviadas</dt>
+        <dt>PRs sent</dt>
         <dd>{{ formatNumber(totals.prs_sent) }}</dd>
       </div>
     </dl>
@@ -162,17 +162,17 @@ const tokenSource: Record<string, string> = {
     <div class="columns">
       <section class="section">
         <div class="section-head">
-          <h2>Actividad reciente</h2>
-          <RouterLink to="/activity" class="small">Ver toda la actividad</RouterLink>
+          <h2>Recent activity</h2>
+          <RouterLink to="/activity" class="small">View all activity</RouterLink>
         </div>
         <div v-if="runs.length" class="table-wrap">
           <table class="table">
             <thead>
               <tr>
-                <th>Repositorio</th>
-                <th>Resultado</th>
-                <th>Ahorro</th>
-                <th class="num">Cuándo</th>
+                <th>Repository</th>
+                <th>Result</th>
+                <th>Savings</th>
+                <th class="num">When</th>
               </tr>
             </thead>
             <tbody>
@@ -190,12 +190,12 @@ const tokenSource: Record<string, string> = {
             </tbody>
           </table>
         </div>
-        <p v-else-if="!loading" class="empty panel">Todavía no ha habido ninguna ejecución.</p>
+        <p v-else-if="!loading" class="empty panel">No runs yet.</p>
       </section>
 
       <aside class="side">
         <section v-if="status" class="section">
-          <h3>Identidad</h3>
+          <h3>Identity</h3>
           <dl class="facts">
             <dt>PRs</dt>
             <dd>
@@ -204,7 +204,7 @@ const tokenSource: Record<string, string> = {
                 <span v-if="status.github.name" class="muted">({{ status.github.name }})</span>
                 <div v-if="status.github.token_source" class="hint">{{ tokenSource[status.github.token_source] }}</div>
               </template>
-              <span v-else class="tag danger">sin acceso</span>
+              <span v-else class="tag danger">no access</span>
             </dd>
             <dt>Commits</dt>
             <dd>
@@ -212,17 +212,17 @@ const tokenSource: Record<string, string> = {
                 {{ status.git.identity.name }}
                 <div class="hint">{{ identityHint }}</div>
               </template>
-              <span v-else class="tag warn">sin identidad</span>
+              <span v-else class="tag warn">no identity</span>
             </dd>
             <dt>git</dt>
             <dd class="muted">{{ status.git.version || '—' }}</dd>
-            <dt>Versión</dt>
+            <dt>Version</dt>
             <dd class="muted">git-opt {{ status.version }}</dd>
           </dl>
         </section>
 
         <section v-if="status" class="section">
-          <h3>Optimizadores</h3>
+          <h3>Optimizers</h3>
           <ul class="optimizers">
             <li v-for="o in status.optimizers" :key="o.id">
               <span
@@ -230,11 +230,11 @@ const tokenSource: Record<string, string> = {
                 :class="!o.enabled ? 'hollow' : o.available ? 'ok' : 'danger'"
               >{{ o.label }}</span>
               <span class="hint">
-                {{ !o.enabled ? 'desactivado' : o.available ? o.detail : 'no disponible' }}
+                {{ !o.enabled ? 'disabled' : o.available ? o.detail : 'unavailable' }}
               </span>
             </li>
           </ul>
-          <RouterLink to="/settings" class="small">Configurar</RouterLink>
+          <RouterLink to="/settings" class="small">Configure</RouterLink>
         </section>
       </aside>
     </div>
