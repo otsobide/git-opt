@@ -13,6 +13,7 @@ mod icns;
 mod jpeg;
 mod png;
 mod svg;
+mod svgz;
 mod verify;
 mod webp;
 
@@ -85,6 +86,7 @@ impl Registry {
             Arc::new(ico::Ico),
             Arc::new(icns::Icns),
             Arc::new(svg::Svg),
+            Arc::new(svgz::Svgz),
         ];
         let registry = Arc::new(Self { available: RwLock::new(Vec::new()), optimizers });
         registry.refresh().await;

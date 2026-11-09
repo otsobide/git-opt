@@ -766,6 +766,7 @@ dependencies = [
  "chrono",
  "dirs",
  "fastrand",
+ "flate2",
  "globset",
  "image",
  "libwebp-sys",
@@ -785,6 +786,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "xmlparser",
+ "zopfli",
 ]
 
 [[package]]
