@@ -1,0 +1,22 @@
+[package]
+name = "git-opt-application"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "git-opt use cases, written against the domain ports only"
+
+[dependencies]
+git-opt-domain = { path = "../domain" }
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+chrono = "0.4.45"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["sync", "time", "rt", "macros"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+# Real adapters, to test use cases end to end without network or codecs.
+git-opt-git-cli = { path = "../adapters/git-cli" }
+git-opt-sqlite = { path = "../adapters/sqlite" }
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }

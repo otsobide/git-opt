@@ -781,6 +781,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-opt-application"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "git-opt-domain",
+ "git-opt-git-cli",
+ "git-opt-sqlite",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "git-opt-codecs"
 version = "0.1.0"
 dependencies = [
