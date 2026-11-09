@@ -32,7 +32,7 @@ Everything the Dashboard needs:
     "identity_source": "git"
   },
   "optimizers": [
-    { "id": "oxipng", "label": "PNG (oxipng)", "category": "image", "extensions": ["png"],
+    { "id": "oxipng", "label": "PNG and APNG (oxipng)", "category": "image", "extensions": ["png"],
       "enabled": true, "available": true, "detail": "built-in oxipng 10" }
   ],
   "jobs": {

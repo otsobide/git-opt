@@ -84,7 +84,7 @@ A small typed client over `reqwest` (rustls): `user`, `repo`, `list_repos` (foll
 #[async_trait]
 pub trait Optimizer: Send + Sync {
     fn id(&self) -> &'static str;              // "oxipng"
-    fn label(&self) -> &'static str;           // "PNG (oxipng)"
+    fn label(&self) -> &'static str;           // "PNG and APNG (oxipng)"
     fn category(&self) -> &'static str;        // "image"
     fn extensions(&self) -> &'static [&'static str];
     fn enabled_by_default(&self) -> bool { true }
