@@ -3,7 +3,10 @@
 use std::io::Cursor;
 
 use anyhow::{Context, Result, bail, ensure};
-use image::{AnimationDecoder, DynamicImage, ImageFormat, codecs::gif::GifDecoder};
+use image::{
+    AnimationDecoder, DynamicImage, Frames, ImageFormat,
+    codecs::{gif::GifDecoder, png::PngDecoder},
+};
 
 fn decode(bytes: &[u8], format: ImageFormat) -> Result<DynamicImage> {
     image::load_from_memory_with_format(bytes, format).with_context(|| format!("cannot decode {format:?}"))
@@ -37,8 +40,39 @@ pub fn same_pixels(original: &[u8], candidate: &[u8], format: ImageFormat) -> Re
 pub fn same_gif_frames(original: &[u8], candidate: &[u8]) -> Result<()> {
     let a = GifDecoder::new(Cursor::new(original)).context("cannot decode original gif")?;
     let b = GifDecoder::new(Cursor::new(candidate)).context("cannot decode optimized gif")?;
-    let mut fa = a.into_frames();
-    let mut fb = b.into_frames();
+    same_frames(a.into_frames(), b.into_frames())
+}
+
+/// For an animated PNG: same default image, same animation control (frame
+/// count and loop count) and identical composited frames with their delays.
+pub fn same_apng(original: &[u8], candidate: &[u8]) -> Result<()> {
+    same_pixels(original, candidate, ImageFormat::Png)?;
+    ensure!(
+        png_chunk(original, b"acTL") == png_chunk(candidate, b"acTL"),
+        "animation control (acTL) changed"
+    );
+    let a = PngDecoder::new(Cursor::new(original)).context("cannot decode original apng")?;
+    let b = PngDecoder::new(Cursor::new(candidate)).context("cannot decode optimized apng")?;
+    ensure!(b.is_apng()?, "animation was lost");
+    same_frames(a.apng()?.into_frames(), b.apng()?.into_frames())
+}
+
+/// Payload of the first PNG chunk of the given type.
+pub fn png_chunk<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
+    let mut pos = 8; // signature
+    while pos + 8 <= data.len() {
+        let len = u32::from_be_bytes(data[pos..pos + 4].try_into().ok()?) as usize;
+        let start = pos + 8;
+        let end = start.checked_add(len)?;
+        if &data[pos + 4..pos + 8] == kind {
+            return data.get(start..end);
+        }
+        pos = end.checked_add(4)?; // skip CRC
+    }
+    None
+}
+
+fn same_frames(mut fa: Frames<'_>, mut fb: Frames<'_>) -> Result<()> {
     let mut index = 0usize;
     loop {
         match (fa.next(), fb.next()) {

@@ -223,13 +223,45 @@ mod tests {
         assert!(err.is_err());
     }
 
+    fn bloated_apng(shift: u8) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut enc = ::png::Encoder::new(&mut out, 48, 32);
+        enc.set_color(::png::ColorType::Rgba);
+        enc.set_depth(::png::BitDepth::Eight);
+        enc.set_compression(::png::Compression::NoCompression);
+        enc.set_animated(3, 0).unwrap();
+        let mut writer = enc.write_header().unwrap();
+        for frame in 0..3u8 {
+            writer.set_frame_delay(frame as u16 + 1, 10).unwrap();
+            let data: Vec<u8> = (0..48 * 32)
+                .flat_map(|i| {
+                    let (x, y) = ((i % 48) as u8, (i / 48) as u8);
+                    [x.wrapping_mul(5) ^ frame.wrapping_mul(40), y.wrapping_mul(7).wrapping_add(shift), 90, 255]
+                })
+                .collect();
+            writer.write_image_data(&data).unwrap();
+        }
+        writer.finish().unwrap();
+        out
+    }
+
+    #[tokio::test]
+    async fn apng_keeps_every_frame() {
+        let input = Arc::new(bloated_apng(0));
+        assert!(png::is_apng(&input));
+        match process(&png::Oxipng, input.clone(), &Settings::default()).await {
+            Outcome::Optimized(out) => {
+                assert!(png::is_apng(&out));
+                verify::same_apng(&input, &out).unwrap();
+            }
+            other => panic!("expected optimization, got {other:?}"),
+        }
+    }
+
     #[test]
-    fn apng_is_refused() {
-        let mut png = bloated_png(&sample());
-        // Splice a fake acTL chunk right after IHDR (8 sig + 25 IHDR bytes).
-        let actl = [0, 0, 0, 8, b'a', b'c', b'T', b'L', 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
-        png.splice(33..33, actl);
-        assert!(png::is_apng(&png));
+    fn apng_verifier_sees_later_frames() {
+        assert!(verify::same_apng(&bloated_apng(0), &bloated_apng(0)).is_ok());
+        assert!(verify::same_apng(&bloated_apng(0), &bloated_apng(1)).is_err());
         assert!(!png::is_apng(&bloated_png(&sample())));
     }
 

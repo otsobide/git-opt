@@ -736,6 +736,7 @@ dependencies = [
  "globset",
  "image",
  "oxipng",
+ "png",
  "reqwest",
  "serde",
  "serde_json",
