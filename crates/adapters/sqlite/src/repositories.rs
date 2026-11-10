@@ -112,10 +112,10 @@ impl RepositoryStore for SqliteStore {
         Ok(())
     }
 
-    async fn set_fork(&self, id: RepoId, fork: &Fork) -> Result<()> {
+    async fn set_fork(&self, id: RepoId, fork: Option<&Fork>) -> Result<()> {
         sqlx::query("UPDATE repos SET fork_full_name = ?, fork_clone_url = ? WHERE id = ?")
-            .bind(fork.slug.to_string())
-            .bind(fork.clone_url.as_str())
+            .bind(fork.map(|f| f.slug.to_string()))
+            .bind(fork.map(|f| f.clone_url.as_str()))
             .bind(id.get())
             .execute(&self.pool)
             .await?;

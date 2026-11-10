@@ -105,7 +105,7 @@ async fn ensure_fork(services: &Services, repo: &Repository) -> Result<Fork> {
     }
     let remote = forge.fork(&repo.slug).await?;
     let fork = Fork { slug: remote.slug, clone_url: remote.clone_url };
-    services.ports.repositories.set_fork(repo.id, &fork).await?;
+    services.ports.repositories.set_fork(repo.id, Some(&fork)).await?;
     Ok(fork)
 }
 
