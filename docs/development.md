@@ -33,6 +33,7 @@ To work on the UI without a GitHub account (or without touching real repositorie
 | Command | What it covers | Time |
 |---|---|---|
 | `cargo test --workspace` | every crate: domain value objects and policies (pure); every format strategy (it shrinks, the result is proven equivalent, `verify` rejects a minimal change, already optimal files are left alone, damaged/lossy/unusual inputs are refused: PNG, Zopfli, APNG frames, JPEG pixels and metadata, GIF frames, WebP pixels and chunks, ICO, ICNS, SVG from Inkscape/Illustrator, embedded images, SVGZ); the SQLite, git and GitHub adapters; use cases end to end (see below); the job queue | seconds |
+| `cargo fmt --all --check` | formatting (`rustfmt.toml`: 120 columns); run `cargo fmt --all` to fix | seconds |
 | `cargo clippy --workspace --all-targets` | lints; keep it at zero warnings | seconds |
 | `cargo check -p git-opt-codecs --no-default-features --features <list>` | each codec feature must build on its own | seconds |
 | `cd frontend && npm run build` | `vue-tsc` type-check + production build | seconds |
@@ -41,6 +42,21 @@ To work on the UI without a GitHub account (or without touching real repositorie
 Use cases (`crates/application/src/tests.rs`) run against real SQLite (in memory) and real git (local repositories), with an in-memory `CodeForge`, a fixed `Clock` and a fake `FormatStrategy`: they cover the full check → PR → merge cycle, quiet polls, fork + manual approval and rejected PRs without any network, in a fraction of a second. Add a test there for any new behavior of a use case.
 
 The e2e script builds the debug binary, picks ports `18484`/`18999` (override with `PORT`/`API_PORT`) and deletes everything it created on exit.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+| Job | What it runs |
+|---|---|
+| Rust (format, lint, test) | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, with gifsicle installed |
+| Codec features build alone | `cargo check -p git-opt-codecs` with no features and with each feature on its own (read from `Cargo.toml`, so new features are covered automatically) |
+| Minimum Rust version | `cargo check --workspace --all-targets` with the `rust-version` the crates declare (all of them must declare the same one) |
+| UI (type-check, build) | `npm ci` and `npm run build` with Node 24 |
+| End-to-end (fake GitHub) | `scripts/e2e.sh` in `rust:1.98-slim-trixie` with Debian's ImageMagick, librsvg and gifsicle |
+| Docker image | builds the image, starts it and checks that the UI is served, git is found and every optimizer is available |
+
+Cargo runs with `--locked`, so commit `Cargo.lock` together with `Cargo.toml`. A dependency that needs a newer compiler means raising `rust-version` in every crate as well.
 
 ## The fake GitHub
 
