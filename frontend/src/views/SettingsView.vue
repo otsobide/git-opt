@@ -274,6 +274,15 @@ const detected = computed(() => {
             Sign commits (when your git config asks for it)
           </label>
           <p class="hint">Turn it off if the server cannot reach your GPG or SSH key (in Docker, for example).</p>
+          <label class="check">
+            <input v-model="form.delete_merged_forks" type="checkbox" />
+            Delete my fork once all its pull requests are merged
+          </label>
+          <p class="hint">
+            Only for repositories in fork mode; your own repositories and those you can push to are never touched.
+            The fork stays while any pull request from it is open or any of its branches has unmerged commits. The
+            token needs the <code>delete_repo</code> scope (<code>gh auth refresh -s delete_repo</code>).
+          </p>
         </div>
       </section>
 
