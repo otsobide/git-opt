@@ -13,9 +13,9 @@ git-opt follows a **hexagonal architecture** (ports and adapters). The core (wha
                                                          │ calls use cases
 ┌────────────────────────────────────────────────────────▼────────────────────────────────────────────────────────┐
 │ application   use cases (check, publish, add/remove repos, sources, settings, status), job queue, scheduler,    │
-│               strategies: delivery (direct / via fork), author chain                                             │
+│               strategies: delivery (direct / via fork), author chain                                            │
 │ ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
-│ │ domain      value objects · entities · policies (attempt, report, poll policy, ignore rules) · PORTS (traits) │ │
+│ │ domain      value objects · entities · policies (attempt, report, poll, ignore, forks) · PORTS (traits)     │ │
 │ └─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
 └───────┬───────────────────┬────────────────────┬──────────────────────┬─────────────────────────────────────────┘
         │ RepositoryStore…  │ VersionControl     │ CodeForge            │ FormatStrategy
@@ -70,6 +70,7 @@ Small immutable types that are **valid by construction**: if you hold one, it is
 
 - `ports::attempt`: the only way a file is optimized. It is a template method around a strategy: optimize → keep only if the gain passes the `SavingsThreshold` → require the strategy's proof of equivalence → `Outcome::{Optimized, Optimal, Failed}`.
 - `report`: the commit message and pull request body, and `BOT_MARKER`, the trailer that lets the bot recognize its own work in any history.
+- `fork_cleanup`: when the developer's fork may be deleted: only their own fork of that repository, with no open pull request and no branch holding unmerged commits.
 - `PollPolicy::next_check`, `IgnoreMatcher`, `Settings::sanitized`, `BlobVerdict::skips_file`.
 
 ### Ports (`ports/`)
@@ -78,7 +79,7 @@ Small immutable types that are **valid by construction**: if you hold one, it is
 |---|---|---|
 | `FormatStrategy` | `codecs` | optimize one family of formats and prove equivalence |
 | `VersionControl` + `Workspace` | `adapters/git-cli` | the bot's working copies: clone, fetch, tree, marked blobs, commit, push |
-| `CodeForge` | `adapters/github` | account, repositories, forks, pull requests, credentials |
+| `CodeForge` | `adapters/github` | account, repositories, forks (create, inspect branches and compare, delete), pull requests, credentials |
 | `RepositoryStore`, `SourceStore`, `RunStore`, `SettingsStore`, `SecretStore`, `VerdictCache`, `RejectionStore` | `adapters/sqlite` | persistence, shaped by the use cases (targeted updates, so a background check never overwrites what the user changed meanwhile) |
 | `Clock`, `Random` | `server` (`system.rs`) | time and jitter, so scheduling is testable |
 
@@ -89,6 +90,7 @@ Small immutable types that are **valid by construction**: if you hold one, it is
 | Module | Use cases |
 |---|---|
 | `use_cases/check.rs` | `check_repository`: refresh PR state, fetch, find candidates, optimize, commit, deliver |
+| `use_cases/forks.rs` | `tidy_fork`: after a check, delete the fork once every pull request from it is merged |
 | `use_cases/publish.rs` | `publish_pending`: deliver a commit that was waiting for approval |
 | `use_cases/repositories.rs` | add (with mode selection), update, remove, request check/publish, forget rejections |
 | `use_cases/sources.rs` | add/update/remove sources, `sync_source` |
@@ -164,7 +166,7 @@ Use cases, domain rules and the other adapters stay untouched.
 | domain | pure unit tests of every value object and policy (no I/O) |
 | codecs | each strategy shrinks a sample, its result passes its proof, its verifier rejects a one-pixel/one-byte change, and damaged/lossy/unusual inputs are refused; feature subsets must compile |
 | adapters | SQLite against an in-memory database; git against local repositories; GitHub payload mapping and the token chain |
-| application | use cases end to end with real SQLite and git, an in-memory forge, a fixed clock and a fake format strategy: PR opened as the developer, quiet polls, merges credited, fork + approval, rejected PRs |
+| application | use cases end to end with real SQLite and git, an in-memory forge, a fixed clock and a fake format strategy: PR opened as the developer, quiet polls, merges credited, fork + approval, rejected PRs, merged forks deleted only when safe |
 | whole system | `scripts/e2e.sh`: the real binary against a fake GitHub API, ten formats, pixels compared with ImageMagick/librsvg |
 
 ## Data model

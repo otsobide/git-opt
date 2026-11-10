@@ -37,7 +37,7 @@ To work on the UI without a GitHub account (or without touching real repositorie
 | `cargo clippy --workspace --all-targets` | lints; keep it at zero warnings | seconds |
 | `cargo check -p git-opt-codecs --no-default-features --features <list>` | each codec feature must build on its own | seconds |
 | `cd frontend && npm run build` | `vue-tsc` type-check + production build | seconds |
-| `scripts/e2e.sh` | the real binary against a fake GitHub and local bare repositories: add repo → PR with PNG, APNG, JPEG, WebP, ICO, ICNS, SVG, SVG with an embedded PNG and SVGZ fixtures → pixels identical (ImageMagick `compare -metric AE`; SVG/SVGZ rendered by librsvg, independently of resvg; the ICNS PNG element extracted and compared, other elements byte for byte) → merge → nothing left → third-party repo in fork mode with manual approval → publish | ~30 s |
+| `scripts/e2e.sh` | the real binary against a fake GitHub and local bare repositories: add repo → PR with PNG, APNG, JPEG, WebP, ICO, ICNS, SVG, SVG with an embedded PNG and SVGZ fixtures → pixels identical (ImageMagick `compare -metric AE`; SVG/SVGZ rendered by librsvg, independently of resvg; the ICNS PNG element extracted and compared, other elements byte for byte) → merge → nothing left → third-party repo in fork mode with manual approval → publish → merge → fork kept while a branch holds unmerged commits, then deleted | ~30 s |
 
 Use cases (`crates/application/src/tests.rs`) run against real SQLite (in memory) and real git (local repositories), with an in-memory `CodeForge`, a fixed `Clock` and a fake `FormatStrategy`: they cover the full check → PR → merge cycle, quiet polls, fork + manual approval and rejected PRs without any network, in a fraction of a second. Add a test there for any new behavior of a use case.
 
@@ -60,7 +60,7 @@ Cargo runs with `--locked`, so commit `Cargo.lock` together with `Cargo.toml`. A
 
 ## The fake GitHub
 
-`scripts/mock-github.py <port> <config.json>` implements the endpoints git-opt calls (`/user`, `/user/repos`, `/users/{u}/repos`, `/orgs/{o}/repos`, `/repos/{o}/{r}`, forks and pulls) on top of local bare repositories:
+`scripts/mock-github.py <port> <config.json>` implements the endpoints git-opt calls (`/user`, `/user/repos`, `/users/{u}/repos`, `/orgs/{o}/repos`, `/repos/{o}/{r}` including `DELETE` for forks, forks, branches, compare and pulls) on top of local bare repositories:
 
 ```json
 { "token": "fake-token", "user": { "id": 42, "login": "jdev", "name": "Jane Developer" },
@@ -70,7 +70,7 @@ Cargo runs with `--locked`, so commit `Cargo.lock` together with `Cargo.toml`. A
     "octo/gone":        { "push": true,  "clone": "/abs/gone.git", "deleted": true } } }
 ```
 
-Point git-opt at it with `GIT_OPT_GITHUB_API=http://127.0.0.1:<port>` and `GITHUB_TOKEN=fake-token`. Clone URLs are `file://`, so no credentials are injected. Helpers without auth: `POST /_mock/merge/<n>`, `POST /_mock/close/<n>`, `GET /_mock/pulls`.
+Point git-opt at it with `GIT_OPT_GITHUB_API=http://127.0.0.1:<port>` and `GITHUB_TOKEN=fake-token`. Clone URLs are `file://`, so no credentials are injected. Helpers without auth: `POST /_mock/merge/<n>`, `POST /_mock/close/<n>`, `GET /_mock/pulls`, `GET /_mock/deleted` (forks deleted so far).
 
 ## Demo and screenshots
 
