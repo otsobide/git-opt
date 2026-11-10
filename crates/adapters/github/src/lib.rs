@@ -9,14 +9,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use git_opt_domain::{
     model::{PrState, SourceKind},
-    ports::{CodeForge, ForgeAccount, ForgePullRequest, ForgeRepository, PullRequestHead, SecretStore, TokenOrigin},
-    values::{AccessToken, BranchName, CloneUrl, Identity, OwnerName, PrNumber, RepoName, RepoSlug},
+    ports::{
+        BranchPullRequest, CodeForge, ForgeAccount, ForgeBranch, ForgePullRequest, ForgeRepository, PullRequestHead,
+        SecretStore, TokenOrigin,
+    },
+    values::{AccessToken, BranchName, CloneUrl, CommitSha, Identity, OwnerName, PrNumber, RepoName, RepoSlug},
 };
-use reqwest::{Method, RequestBuilder, Response, StatusCode, header};
+use reqwest::{Method, RequestBuilder, Response, StatusCode, Url, header};
 use serde::{Deserialize, de::DeserializeOwned};
 pub use token::{EnvToken, GhCliToken, SavedToken, TokenSource};
 use tokio::sync::Mutex;
@@ -233,6 +236,46 @@ impl CodeForge for GitHub {
         let pull: ApiPull = self.send(req).await?;
         Ok(pull.into_domain())
     }
+
+    async fn branches(&self, slug: &RepoSlug) -> Result<Vec<ForgeBranch>> {
+        let branches: Vec<ApiBranch> = self.get_all(&format!("/repos/{slug}/branches?per_page=100")).await?;
+        branches
+            .into_iter()
+            .map(|b| Ok(ForgeBranch { name: BranchName::new(b.name)?, head: CommitSha::new(b.commit.sha)? }))
+            .collect()
+    }
+
+    async fn pull_requests_from(&self, slug: &RepoSlug, head: &PullRequestHead) -> Result<Vec<BranchPullRequest>> {
+        let mut url = Url::parse(&format!("{}/repos/{slug}/pulls", self.api))?;
+        url.query_pairs_mut()
+            .append_pair("state", "all")
+            .append_pair("per_page", "100")
+            .append_pair("head", &format!("{}:{}", head.owner, head.branch));
+        let pulls: Vec<ApiPull> = self.get_all(url.as_str()).await?;
+        pulls.into_iter().map(ApiPull::into_branch_pull).collect()
+    }
+
+    async fn commits_ahead(&self, slug: &RepoSlug, base: &BranchName, head: &PullRequestHead) -> Result<u64> {
+        let basehead = format!("{}...{}:{}", path_ref(base.as_str()), head.owner, path_ref(head.branch.as_str()));
+        let compare: ApiCompare = self.get(&format!("/repos/{slug}/compare/{basehead}?per_page=1")).await?;
+        Ok(compare.ahead_by)
+    }
+
+    async fn delete_repository(&self, slug: &RepoSlug) -> Result<()> {
+        let resp = self.request(Method::DELETE, &format!("/repos/{slug}")).await?.send().await?;
+        let denied = matches!(resp.status(), StatusCode::FORBIDDEN | StatusCode::NOT_FOUND);
+        let result = check(resp).await.map(drop);
+        if denied {
+            // GitHub answers 403 (or 404) when the token lacks the delete_repo scope.
+            return result.context("the token needs the delete_repo scope (gh auth refresh -s delete_repo)");
+        }
+        result
+    }
+}
+
+/// A ref inside a URL path: `/` stays (GitHub expects it), the rest is escaped.
+fn path_ref(name: &str) -> String {
+    name.replace('%', "%25").replace('#', "%23")
 }
 
 // --------------------------------------------------------------- API types
@@ -249,6 +292,11 @@ struct ApiPermissions {
 }
 
 #[derive(Debug, Deserialize)]
+struct ApiParent {
+    full_name: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct ApiRepo {
     name: String,
     owner: ApiOwner,
@@ -261,6 +309,8 @@ struct ApiRepo {
     #[serde(default)]
     disabled: bool,
     permissions: Option<ApiPermissions>,
+    /// Only present when a single repository is requested.
+    parent: Option<ApiParent>,
 }
 
 impl ApiRepo {
@@ -270,6 +320,7 @@ impl ApiRepo {
             clone_url: CloneUrl::new(self.clone_url)?,
             default_branch: BranchName::new(self.default_branch.unwrap_or_else(|| "main".into()))?,
             is_fork: self.fork,
+            parent: self.parent.and_then(|p| RepoSlug::parse(&p.full_name).ok()),
             read_only: self.archived || self.disabled,
             can_push: self.permissions.is_some_and(|p| p.push),
         })
@@ -294,22 +345,48 @@ impl ApiUser {
 }
 
 #[derive(Debug, Deserialize)]
+struct ApiCommitRef {
+    sha: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct ApiPull {
     number: i64,
     html_url: String,
     state: String,
     merged_at: Option<String>,
+    head: Option<ApiCommitRef>,
 }
 
 impl ApiPull {
-    fn into_domain(self) -> ForgePullRequest {
-        let state = match (self.state.as_str(), self.merged_at.is_some()) {
+    fn state(&self) -> PrState {
+        match (self.state.as_str(), self.merged_at.is_some()) {
             ("open", _) => PrState::Open,
             (_, true) => PrState::Merged,
             _ => PrState::Closed,
-        };
-        ForgePullRequest { number: PrNumber::new(self.number), url: self.html_url, state }
+        }
     }
+
+    fn into_domain(self) -> ForgePullRequest {
+        ForgePullRequest { number: PrNumber::new(self.number), state: self.state(), url: self.html_url }
+    }
+
+    fn into_branch_pull(self) -> Result<BranchPullRequest> {
+        let state = self.state();
+        let head = self.head.ok_or_else(|| anyhow!("pull request #{} has no head commit", self.number))?;
+        Ok(BranchPullRequest { number: PrNumber::new(self.number), state, head: CommitSha::new(head.sha)? })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiBranch {
+    name: String,
+    commit: ApiCommitRef,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiCompare {
+    ahead_by: u64,
 }
 
 #[derive(Deserialize)]
@@ -389,6 +466,32 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(merged.into_domain().state, PrState::Merged);
+    }
+
+    #[test]
+    fn maps_fork_payloads_to_the_domain() {
+        let fork: ApiRepo = serde_json::from_value(serde_json::json!({
+            "name": "lib", "owner": { "login": "jdev" }, "clone_url": "https://github.com/jdev/lib.git",
+            "fork": true, "parent": { "full_name": "other/lib" }
+        }))
+        .unwrap();
+        let fork = fork.into_domain().unwrap();
+        assert!(fork.is_fork);
+        assert_eq!(fork.parent.unwrap().to_string(), "other/lib");
+
+        let sha = "0123456789abcdef0123456789abcdef01234567";
+        let pull: ApiPull = serde_json::from_value(serde_json::json!({
+            "number": 3, "html_url": "u", "state": "closed", "merged_at": null, "head": { "sha": sha }
+        }))
+        .unwrap();
+        let pull = pull.into_branch_pull().unwrap();
+        assert_eq!((pull.state, pull.head.as_str()), (PrState::Closed, sha));
+
+        let branch: ApiBranch =
+            serde_json::from_value(serde_json::json!({ "name": "git-opt/optimize-images", "commit": { "sha": sha } }))
+                .unwrap();
+        assert_eq!(branch.name, "git-opt/optimize-images");
+        assert_eq!(path_ref("fix/100%#1"), "fix/100%25%231");
     }
 
     #[test]

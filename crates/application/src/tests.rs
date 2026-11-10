@@ -72,6 +72,11 @@ struct FakeForge {
     /// upstream slug -> fork to create
     forks: Mutex<HashMap<String, ForgeRepository>>,
     pulls: Mutex<Vec<(RepoSlug, PullRequestHead, ForgePullRequest)>>,
+    /// Head commits of pull requests that are no longer open.
+    frozen_heads: Mutex<HashMap<PrNumber, CommitSha>>,
+    /// Branch name -> commits it has that the upstream default branch lacks (0 when missing).
+    ahead: Mutex<HashMap<String, u64>>,
+    deleted: Mutex<Vec<RepoSlug>>,
 }
 
 impl FakeForge {
@@ -82,10 +87,37 @@ impl FakeForge {
         self.pulls.lock().unwrap().clone()
     }
     fn set_pull_state(&self, state: PrState) {
+        let pulls: Vec<_> = self.pulls();
+        for (slug, head, pr) in pulls {
+            if state != PrState::Open
+                && let Some(tip) = self.tip(&head_repo(&slug, &head), &head.branch)
+            {
+                self.frozen_heads.lock().unwrap().insert(pr.number, tip);
+            }
+        }
         for pr in self.pulls.lock().unwrap().iter_mut() {
             pr.2.state = state;
         }
     }
+    /// The bare repository behind a forge repository.
+    fn bare(&self, slug: &RepoSlug) -> Option<PathBuf> {
+        let repos = self.repos.lock().unwrap();
+        let repo = repos.get(&slug.to_string().to_lowercase())?;
+        Some(PathBuf::from(repo.clone_url.as_str().trim_start_matches("file://")))
+    }
+    fn tip(&self, slug: &RepoSlug, branch: &BranchName) -> Option<CommitSha> {
+        let out = std::process::Command::new("git")
+            .current_dir(self.bare(slug)?)
+            .args(["rev-parse", "--verify", "-q", &format!("refs/heads/{branch}")])
+            .output()
+            .ok()?;
+        CommitSha::new(String::from_utf8_lossy(&out.stdout).trim()).ok()
+    }
+}
+
+/// The repository a pull request's branch lives in.
+fn head_repo(slug: &RepoSlug, head: &PullRequestHead) -> RepoSlug {
+    if head.cross_repository { RepoSlug::new(head.owner.clone(), slug.name().clone()) } else { slug.clone() }
 }
 
 #[async_trait]
@@ -155,6 +187,42 @@ impl CodeForge for FakeForge {
     ) -> Result<ForgePullRequest> {
         self.pull_request(slug, number).await
     }
+    async fn branches(&self, slug: &RepoSlug) -> Result<Vec<ForgeBranch>> {
+        let bare = self.bare(slug).ok_or_else(|| anyhow!("404"))?;
+        let refs = git(&bare, &["for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads"]);
+        refs.lines()
+            .map(|line| {
+                let (name, sha) = line.split_once(' ').unwrap();
+                Ok(ForgeBranch { name: BranchName::new(name)?, head: CommitSha::new(sha)? })
+            })
+            .collect()
+    }
+    async fn pull_requests_from(&self, slug: &RepoSlug, head: &PullRequestHead) -> Result<Vec<BranchPullRequest>> {
+        let matching: Vec<_> = self
+            .pulls()
+            .into_iter()
+            .filter(|p| &p.0 == slug && p.1.owner == head.owner && p.1.branch == head.branch)
+            .collect();
+        let mut out = Vec::new();
+        for (slug, head, pr) in matching {
+            let frozen = self.frozen_heads.lock().unwrap().get(&pr.number).cloned();
+            let tip = frozen.or_else(|| self.tip(&head_repo(&slug, &head), &head.branch));
+            out.push(BranchPullRequest {
+                number: pr.number,
+                state: pr.state,
+                head: tip.ok_or_else(|| anyhow!("gone"))?,
+            });
+        }
+        Ok(out)
+    }
+    async fn commits_ahead(&self, _: &RepoSlug, _: &BranchName, head: &PullRequestHead) -> Result<u64> {
+        Ok(self.ahead.lock().unwrap().get(head.branch.as_str()).copied().unwrap_or(0))
+    }
+    async fn delete_repository(&self, slug: &RepoSlug) -> Result<()> {
+        self.repos.lock().unwrap().remove(&slug.to_string().to_lowercase()).ok_or_else(|| anyhow!("404"))?;
+        self.deleted.lock().unwrap().push(slug.clone());
+        Ok(())
+    }
 }
 
 // ------------------------------------------------------------------- setup
@@ -192,6 +260,7 @@ fn forge_repo(slug: &str, bare: &Path, can_push: bool) -> ForgeRepository {
         clone_url: CloneUrl::new(format!("file://{}", bare.display())).unwrap(),
         default_branch: BranchName::new("main").unwrap(),
         is_fork: false,
+        parent: None,
         read_only: false,
         can_push,
     }
