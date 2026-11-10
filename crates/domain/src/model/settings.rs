@@ -49,6 +49,8 @@ pub struct Settings {
     pub commit_author_name: String,
     pub commit_author_email: String,
     pub sign_commits: bool,
+    /// In fork mode, delete the developer's fork once every pull request from it is merged.
+    pub delete_merged_forks: bool,
 }
 
 impl Default for Settings {
@@ -71,6 +73,7 @@ impl Default for Settings {
             commit_author_name: String::new(),
             commit_author_email: String::new(),
             sign_commits: true,
+            delete_merged_forks: true,
         }
     }
 }

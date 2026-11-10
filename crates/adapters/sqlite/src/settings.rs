@@ -38,6 +38,7 @@ struct SettingsDoc {
     commit_author_name: String,
     commit_author_email: String,
     sign_commits: bool,
+    delete_merged_forks: bool,
 }
 
 impl Default for SettingsDoc {
@@ -66,6 +67,7 @@ impl From<&Settings> for SettingsDoc {
             commit_author_name: s.commit_author_name.clone(),
             commit_author_email: s.commit_author_email.clone(),
             sign_commits: s.sign_commits,
+            delete_merged_forks: s.delete_merged_forks,
         }
     }
 }
@@ -90,6 +92,7 @@ impl From<SettingsDoc> for Settings {
             commit_author_name: d.commit_author_name,
             commit_author_email: d.commit_author_email,
             sign_commits: d.sign_commits,
+            delete_merged_forks: d.delete_merged_forks,
         }
         .sanitized()
     }
