@@ -88,6 +88,23 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
 
+  e2e:
+    name: End-to-end (fake GitHub)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: rust:1.98-slim-trixie
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends \
+            git python3 curl imagemagick libmagickcore-7.q16-10-extra librsvg2-bin gifsicle
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - run: scripts/e2e.sh
+
   docker:
     name: Docker image
     runs-on: ubuntu-latest
