@@ -51,7 +51,9 @@ impl Savings {
 
 impl std::iter::Sum for Savings {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(Self::default(), |acc, s| Self::new(ByteSize(acc.before.0 + s.before.0), ByteSize(acc.after.0 + s.after.0)))
+        iter.fold(Self::default(), |acc, s| {
+            Self::new(ByteSize(acc.before.0 + s.before.0), ByteSize(acc.after.0 + s.after.0))
+        })
     }
 }
 

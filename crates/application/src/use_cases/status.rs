@@ -1,6 +1,6 @@
 //! What the dashboard shows about this installation.
 
-use git_opt_domain::{ports::Totals, ports::TokenOrigin, values::Identity};
+use git_opt_domain::{ports::TokenOrigin, ports::Totals, values::Identity};
 
 use crate::{AppResult, Services, authorship::AuthorOrigin, catalog::StrategyStatus, jobs::RunningJob};
 

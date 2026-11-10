@@ -17,11 +17,7 @@ pub async fn run_on_bytes(program: &str, args: &[&str], input: &[u8], ext: &str)
 
     let args: Vec<String> = args.iter().map(|a| substitute(a, &in_path, &out_path)).collect();
     let mut cmd = Command::new(program);
-    cmd.args(&args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
+    cmd.args(&args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).kill_on_drop(true);
     let out = tokio::time::timeout(TIMEOUT, cmd.output())
         .await
         .with_context(|| format!("{program} timed out"))?

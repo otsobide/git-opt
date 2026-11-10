@@ -6,10 +6,16 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
 use git_opt_domain::{
-    model::{BlobVerdict, FileChange, PrState, PullRequest, RepoStatus, Repository, RunOutcome, RunStatus, RunTrigger, Settings},
+    model::{
+        BlobVerdict, FileChange, PrState, PullRequest, RepoStatus, Repository, RunOutcome, RunStatus, RunTrigger,
+        Settings,
+    },
     ports::{CheckRecord, ForgeRepository, FormatStrategy, Outcome, TreeEntry, Workspace, attempt},
     report::{self, BOT_MARKER},
-    values::{BlobId, BranchName, ByteSize, CloneUrl, CommitSha, FileFormat, IgnoreMatcher, PrNumber, Profile, RepoId, Savings},
+    values::{
+        BlobId, BranchName, ByteSize, CloneUrl, CommitSha, FileFormat, IgnoreMatcher, PrNumber, Profile, RepoId,
+        Savings,
+    },
 };
 
 use crate::{Services, delivery};
@@ -56,7 +62,13 @@ impl Services {
             Ok(Checked { outcome, files }) => {
                 let pending = p.repositories.get(id).await?.is_some_and(|r| r.pending_commit.is_some());
                 let status = if pending { RepoStatus::AwaitingApproval } else { RepoStatus::Ok };
-                let record = CheckRecord { status, error: None, seen: outcome.head.clone(), checked_at: now, next_check_at: next };
+                let record = CheckRecord {
+                    status,
+                    error: None,
+                    seen: outcome.head.clone(),
+                    checked_at: now,
+                    next_check_at: next,
+                };
                 p.repositories.record_check(id, &record).await?;
                 // Routine polls with nothing new are not worth a history row.
                 if outcome.status != RunStatus::NoChanges || trigger != RunTrigger::Schedule {
@@ -71,8 +83,13 @@ impl Services {
                 if trigger != RunTrigger::Schedule || repo.last_error.as_deref() != Some(message.as_str()) {
                     p.runs.record(id, trigger, started, now, &RunOutcome::error(&message), &[]).await?;
                 }
-                let record =
-                    CheckRecord { status: RepoStatus::Error, error: Some(message), seen: None, checked_at: now, next_check_at: next };
+                let record = CheckRecord {
+                    status: RepoStatus::Error,
+                    error: Some(message),
+                    seen: None,
+                    checked_at: now,
+                    next_check_at: next,
+                };
                 p.repositories.record_check(id, &record).await?;
             }
         }
@@ -151,7 +168,13 @@ impl Services {
     }
 
     /// Clones on first use and fetches afterwards; re-clones only a broken checkout.
-    async fn sync_workspace(&self, repo: &Repository, ws: &dyn Workspace, url: &CloneUrl, branch: &BranchName) -> Result<()> {
+    async fn sync_workspace(
+        &self,
+        repo: &Repository,
+        ws: &dyn Workspace,
+        url: &CloneUrl,
+        branch: &BranchName,
+    ) -> Result<()> {
         if ws.exists() {
             self.progress(repo.id, &repo.slug, "Fetching");
             let fetched = async {
@@ -260,11 +283,17 @@ impl Services {
                     optimized.push(Optimized { after: ByteSize::new(out.len() as u64), candidate: c });
                 }
                 Outcome::Optimal(detail) => {
-                    self.ports.verdicts.put(&c.entry.blob, &c.profile, &BlobVerdict::Optimal { detail }, unchanged).await?;
+                    self.ports
+                        .verdicts
+                        .put(&c.entry.blob, &c.profile, &BlobVerdict::Optimal { detail }, unchanged)
+                        .await?;
                 }
                 Outcome::Failed(reason) => {
                     tracing::debug!(repo = %repo.slug, path = %c.entry.path, error = %reason, "not optimized");
-                    self.ports.verdicts.put(&c.entry.blob, &c.profile, &BlobVerdict::Failed { reason }, unchanged).await?;
+                    self.ports
+                        .verdicts
+                        .put(&c.entry.blob, &c.profile, &BlobVerdict::Failed { reason }, unchanged)
+                        .await?;
                 }
             }
         }
@@ -317,10 +346,12 @@ impl Services {
                     tracing::debug!(error = %e, attempt, "push failed, retrying");
                     tokio::time::sleep(std::time::Duration::from_secs(10 * attempt)).await;
                 }
-                Err(e) => return Err(match strategy.push_hint() {
-                    Some(hint) => e.context(hint),
-                    None => e,
-                }),
+                Err(e) => {
+                    return Err(match strategy.push_hint() {
+                        Some(hint) => e.context(hint),
+                        None => e,
+                    });
+                }
             }
         }
 

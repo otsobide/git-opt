@@ -11,12 +11,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use git_opt_domain::{
-    model::*,
-    ports::*,
-    report::BOT_MARKER,
-    values::*,
-};
+use git_opt_domain::{model::*, ports::*, report::BOT_MARKER, values::*};
 use git_opt_git_cli::GitCli;
 use git_opt_sqlite::SqliteStore;
 
@@ -122,11 +117,17 @@ impl CodeForge for FakeForge {
         let pulls = self.pulls.lock().unwrap();
         pulls.iter().find(|p| &p.0 == slug && p.2.number == number).map(|p| p.2.clone()).ok_or_else(|| anyhow!("404"))
     }
-    async fn find_open_pull_request(&self, slug: &RepoSlug, head: &PullRequestHead) -> Result<Option<ForgePullRequest>> {
+    async fn find_open_pull_request(
+        &self,
+        slug: &RepoSlug,
+        head: &PullRequestHead,
+    ) -> Result<Option<ForgePullRequest>> {
         let pulls = self.pulls.lock().unwrap();
         Ok(pulls
             .iter()
-            .find(|p| &p.0 == slug && p.1.owner == head.owner && p.1.branch == head.branch && p.2.state == PrState::Open)
+            .find(|p| {
+                &p.0 == slug && p.1.owner == head.owner && p.1.branch == head.branch && p.2.state == PrState::Open
+            })
             .map(|p| p.2.clone()))
     }
     async fn open_pull_request(
@@ -140,11 +141,18 @@ impl CodeForge for FakeForge {
         assert!(body.contains(BOT_MARKER) && body.contains("**Test**: trailing padding removed."));
         let mut pulls = self.pulls.lock().unwrap();
         let number = PrNumber::new(pulls.len() as i64 + 1);
-        let pr = ForgePullRequest { number, url: format!("https://example.com/{slug}/pull/{number}"), state: PrState::Open };
+        let pr =
+            ForgePullRequest { number, url: format!("https://example.com/{slug}/pull/{number}"), state: PrState::Open };
         pulls.push((slug.clone(), head.clone(), pr.clone()));
         Ok(pr)
     }
-    async fn update_pull_request(&self, slug: &RepoSlug, number: PrNumber, _: &str, _: &str) -> Result<ForgePullRequest> {
+    async fn update_pull_request(
+        &self,
+        slug: &RepoSlug,
+        number: PrNumber,
+        _: &str,
+        _: &str,
+    ) -> Result<ForgePullRequest> {
         self.pull_request(slug, number).await
     }
 }
@@ -312,5 +320,8 @@ async fn adding_twice_or_forking_your_own_repository_is_refused() {
     app.add_repository("jdev/mine", ModeRequest::Auto, true).await.unwrap();
     let again = app.add_repository("JDEV/mine", ModeRequest::Auto, true).await;
     assert!(matches!(again, Err(crate::AppError::Conflict(_))));
-    assert!(matches!(app.add_repository("not a repo", ModeRequest::Auto, true).await, Err(crate::AppError::Invalid(_))));
+    assert!(matches!(
+        app.add_repository("not a repo", ModeRequest::Auto, true).await,
+        Err(crate::AppError::Invalid(_))
+    ));
 }

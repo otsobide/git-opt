@@ -74,11 +74,19 @@ pub trait CodeForge: Send + Sync {
     async fn account(&self) -> anyhow::Result<ForgeAccount>;
     async fn repository(&self, slug: &RepoSlug) -> anyhow::Result<ForgeRepository>;
     /// `owner` is `None` for [`SourceKind::Me`].
-    async fn list_repositories(&self, kind: SourceKind, owner: Option<&OwnerName>) -> anyhow::Result<Vec<ForgeRepository>>;
+    async fn list_repositories(
+        &self,
+        kind: SourceKind,
+        owner: Option<&OwnerName>,
+    ) -> anyhow::Result<Vec<ForgeRepository>>;
     /// Creates (or returns) the developer's fork, once it is ready to use.
     async fn fork(&self, slug: &RepoSlug) -> anyhow::Result<ForgeRepository>;
     async fn pull_request(&self, slug: &RepoSlug, number: PrNumber) -> anyhow::Result<ForgePullRequest>;
-    async fn find_open_pull_request(&self, slug: &RepoSlug, head: &PullRequestHead) -> anyhow::Result<Option<ForgePullRequest>>;
+    async fn find_open_pull_request(
+        &self,
+        slug: &RepoSlug,
+        head: &PullRequestHead,
+    ) -> anyhow::Result<Option<ForgePullRequest>>;
     async fn open_pull_request(
         &self,
         slug: &RepoSlug,
@@ -87,5 +95,11 @@ pub trait CodeForge: Send + Sync {
         title: &str,
         body: &str,
     ) -> anyhow::Result<ForgePullRequest>;
-    async fn update_pull_request(&self, slug: &RepoSlug, number: PrNumber, title: &str, body: &str) -> anyhow::Result<ForgePullRequest>;
+    async fn update_pull_request(
+        &self,
+        slug: &RepoSlug,
+        number: PrNumber,
+        title: &str,
+        body: &str,
+    ) -> anyhow::Result<ForgePullRequest>;
 }

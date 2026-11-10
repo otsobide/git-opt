@@ -21,7 +21,9 @@ impl Services {
             }
             Err(e) => {
                 let message = format!("{e:#}");
-                p.runs.record(id, RunTrigger::Publish, started, p.clock.now(), &RunOutcome::error(&message), &[]).await?;
+                p.runs
+                    .record(id, RunTrigger::Publish, started, p.clock.now(), &RunOutcome::error(&message), &[])
+                    .await?;
                 p.repositories.set_status(id, repo.status, Some(&message)).await?;
             }
         }

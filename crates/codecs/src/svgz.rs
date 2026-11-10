@@ -258,7 +258,10 @@ mod tests {
         let changed = Arc::new(gzip(INKSCAPE.replace(r#"width="40""#, r#"width="41""#).as_bytes()));
         assert!(svgz().verify(original.clone(), changed).await.is_err());
         let mut renamed = Vec::new();
-        let mut encoder = flate2::GzBuilder::new().filename("other.svg").mtime(1_700_000_000).write(&mut renamed, flate2::Compression::fast());
+        let mut encoder = flate2::GzBuilder::new()
+            .filename("other.svg")
+            .mtime(1_700_000_000)
+            .write(&mut renamed, flate2::Compression::fast());
         encoder.write_all(INKSCAPE.as_bytes()).unwrap();
         encoder.finish().unwrap();
         assert!(svgz().verify(original, Arc::new(renamed)).await.is_err());

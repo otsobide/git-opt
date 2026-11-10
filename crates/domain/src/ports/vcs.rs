@@ -44,7 +44,11 @@ pub trait Workspace: Send + Sync {
     async fn tree(&self, commit: &CommitSha) -> anyhow::Result<Vec<TreeEntry>>;
     /// Blobs written by any commit reachable from `commit` whose message
     /// contains `marker`.
-    async fn blobs_written_by_marked_commits(&self, commit: &CommitSha, marker: &str) -> anyhow::Result<HashSet<BlobId>>;
+    async fn blobs_written_by_marked_commits(
+        &self,
+        commit: &CommitSha,
+        marker: &str,
+    ) -> anyhow::Result<HashSet<BlobId>>;
     /// Points a fresh local `branch` at `start` and resets the working tree.
     async fn checkout_new_branch(&self, branch: &BranchName, start: &CommitSha) -> anyhow::Result<()>;
     /// Paths stored with Git LFS (never touched).

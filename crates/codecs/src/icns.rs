@@ -64,10 +64,7 @@ impl FormatStrategy for Icns {
     async fn verify(&self, original: Arc<Vec<u8>>, candidate: Arc<Vec<u8>>) -> Result<()> {
         tokio::task::spawn_blocking(move || {
             let (a, b) = (parse(&original)?, parse(&candidate)?);
-            ensure!(
-                a.iter().map(|e| e.kind).eq(b.iter().map(|e| e.kind)),
-                "the list of icon elements changed"
-            );
+            ensure!(a.iter().map(|e| e.kind).eq(b.iter().map(|e| e.kind)), "the list of icon elements changed");
             ensure!(toc_is_consistent(&b), "table of contents does not match the elements");
             for (x, y) in a.iter().zip(&b) {
                 let kind = String::from_utf8_lossy(&x.kind);
@@ -123,16 +120,13 @@ fn toc_entries(data: &[u8]) -> Option<Vec<([u8; 4], u32)>> {
     if !data.len().is_multiple_of(8) {
         return None;
     }
-    data.chunks(8)
-        .map(|c| Some((c[..4].try_into().ok()?, u32::from_be_bytes(c[4..].try_into().ok()?))))
-        .collect()
+    data.chunks(8).map(|c| Some((c[..4].try_into().ok()?, u32::from_be_bytes(c[4..].try_into().ok()?)))).collect()
 }
 
 /// A `TOC `, if present, lists exactly the elements that follow it.
 fn toc_is_consistent(elements: &[Element<'_>]) -> bool {
     let Some(at) = elements.iter().position(|e| e.kind == TOC) else { return true };
-    let actual: Vec<([u8; 4], u32)> =
-        elements[at + 1..].iter().map(|e| (e.kind, e.data.len() as u32 + 8)).collect();
+    let actual: Vec<([u8; 4], u32)> = elements[at + 1..].iter().map(|e| (e.kind, e.data.len() as u32 + 8)).collect();
     toc_entries(elements[at].data).is_some_and(|toc| toc == actual)
 }
 

@@ -3,8 +3,8 @@
 mod bytes;
 mod format;
 mod git;
-mod ids;
 mod identity;
+mod ids;
 mod ignore;
 mod optimizer;
 mod repo;

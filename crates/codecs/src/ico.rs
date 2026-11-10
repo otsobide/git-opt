@@ -50,11 +50,8 @@ impl FormatStrategy for Ico {
             ensure!(icon.entries.iter().any(|e| e.is_png()), "no embedded PNG images");
             let mut payloads = Vec::with_capacity(icon.entries.len());
             for entry in &icon.entries {
-                let payload = if entry.is_png() {
-                    png::recompress_keep_format(entry.data, &opts)?
-                } else {
-                    entry.data.to_vec()
-                };
+                let payload =
+                    if entry.is_png() { png::recompress_keep_format(entry.data, &opts)? } else { entry.data.to_vec() };
                 payloads.push(payload);
             }
             Ok(build(&icon, &payloads))
@@ -120,7 +117,8 @@ pub(super) fn parse(data: &[u8]) -> Result<Icon<'_>> {
         if offset != expected {
             bail!("unusual icon layout");
         }
-        let end = offset.checked_add(size).filter(|&e| e <= data.len()).ok_or_else(|| anyhow!("truncated icon image"))?;
+        let end =
+            offset.checked_add(size).filter(|&e| e <= data.len()).ok_or_else(|| anyhow!("truncated icon image"))?;
         entries.push(Entry { fields: raw[..8].try_into()?, data: &data[offset..end] });
         expected = end;
     }

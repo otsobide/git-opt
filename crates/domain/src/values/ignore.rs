@@ -54,10 +54,7 @@ impl IgnoreMatcher {
                 builder.add(glob);
             }
         }
-        builder
-            .build()
-            .map(Self)
-            .map_err(|e| InvalidValue::new("ignore patterns", e.to_string()))
+        builder.build().map(Self).map_err(|e| InvalidValue::new("ignore patterns", e.to_string()))
     }
     pub fn is_ignored(&self, path: &RepoPath) -> bool {
         self.0.is_match(path.as_str())

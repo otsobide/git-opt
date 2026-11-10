@@ -27,9 +27,10 @@ struct TotalsRow {
 #[async_trait]
 impl RepositoryStore for SqliteStore {
     async fn list(&self) -> Result<Vec<Repository>> {
-        let rows: Vec<RepoRow> = sqlx::query_as("SELECT * FROM repos ORDER BY owner COLLATE NOCASE, name COLLATE NOCASE")
-            .fetch_all(&self.pool)
-            .await?;
+        let rows: Vec<RepoRow> =
+            sqlx::query_as("SELECT * FROM repos ORDER BY owner COLLATE NOCASE, name COLLATE NOCASE")
+                .fetch_all(&self.pool)
+                .await?;
         convert(rows)
     }
 
@@ -132,7 +133,11 @@ impl RepositoryStore for SqliteStore {
     }
 
     async fn schedule(&self, id: RepoId, at: DateTime<Utc>) -> Result<()> {
-        sqlx::query("UPDATE repos SET next_check_at = ? WHERE id = ?").bind(at).bind(id.get()).execute(&self.pool).await?;
+        sqlx::query("UPDATE repos SET next_check_at = ? WHERE id = ?")
+            .bind(at)
+            .bind(id.get())
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 

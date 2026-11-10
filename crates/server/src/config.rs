@@ -28,11 +28,9 @@ impl Config {
             .parse()
             .context("GIT_OPT_BIND must be an address like 127.0.0.1:8484")?;
 
-        let data_dir = env("GIT_OPT_DATA_DIR").map(PathBuf::from).unwrap_or_else(|| {
-            dirs::data_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join("git-opt")
-        });
+        let data_dir = env("GIT_OPT_DATA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| dirs::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("git-opt"));
 
         // Explicit dir first, then sensible defaults for a repository checkout.
         let static_dir = env("GIT_OPT_STATIC_DIR")

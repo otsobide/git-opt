@@ -19,7 +19,6 @@ use image::{
     },
 };
 
-
 fn sample() -> RgbaImage {
     RgbaImage::from_fn(96, 64, |x, y| {
         let alpha = if (x / 8 + y / 8) % 2 == 0 { 255 } else { 128 };
@@ -330,10 +329,8 @@ fn sample_icns() -> Vec<u8> {
     let rle: Vec<u8> = (0..120u8).collect();
     let elements: Vec<(&[u8; 4], Vec<u8>)> =
         vec![(b"icnV", vec![0x42, 0x00, 0x00, 0x00]), (b"ic07", png), (b"is32", rle)];
-    let toc: Vec<u8> = elements
-        .iter()
-        .flat_map(|(k, d)| k.iter().copied().chain(((d.len() + 8) as u32).to_be_bytes()))
-        .collect();
+    let toc: Vec<u8> =
+        elements.iter().flat_map(|(k, d)| k.iter().copied().chain(((d.len() + 8) as u32).to_be_bytes())).collect();
     let mut body = Vec::new();
     for (kind, data) in std::iter::once((b"TOC ", toc)).chain(elements) {
         body.extend_from_slice(kind);

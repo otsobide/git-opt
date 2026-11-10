@@ -16,16 +16,8 @@ pub enum FileFormat {
 }
 
 impl FileFormat {
-    pub const ALL: [FileFormat; 8] = [
-        Self::Png,
-        Self::Jpeg,
-        Self::Gif,
-        Self::WebP,
-        Self::Ico,
-        Self::Icns,
-        Self::Svg,
-        Self::Svgz,
-    ];
+    pub const ALL: [FileFormat; 8] =
+        [Self::Png, Self::Jpeg, Self::Gif, Self::WebP, Self::Ico, Self::Icns, Self::Svg, Self::Svgz];
 
     /// Lower-case extensions, without the dot.
     pub fn extensions(self) -> &'static [&'static str] {

@@ -9,8 +9,8 @@ use chrono::{DateTime, Utc};
 
 use crate::{
     model::{
-        BlobVerdict, FileChange, Fork, NewRepository, NewSource, PullRequest, RepoStatus, Repository, RepositoryChanges,
-        Run, RunOutcome, RunTrigger, Settings, Source, SourceChanges,
+        BlobVerdict, FileChange, Fork, NewRepository, NewSource, PullRequest, RepoStatus, Repository,
+        RepositoryChanges, Run, RunOutcome, RunTrigger, Settings, Source, SourceChanges,
     },
     values::{
         AccessToken, BlobId, BranchName, ByteSize, CloneUrl, CommitSha, PrNumber, Profile, RepoId, RepoSlug, RunId,
@@ -43,7 +43,13 @@ pub trait SourceStore: Send + Sync {
     /// Removes the source; with `with_repositories` also its repositories,
     /// which are returned so their working copies can be removed.
     async fn delete(&self, id: SourceId, with_repositories: bool) -> Result<Vec<Repository>>;
-    async fn mark_synced(&self, id: SourceId, at: DateTime<Utc>, repo_count: Option<u32>, error: Option<&str>) -> Result<()>;
+    async fn mark_synced(
+        &self,
+        id: SourceId,
+        at: DateTime<Utc>,
+        repo_count: Option<u32>,
+        error: Option<&str>,
+    ) -> Result<()>;
     /// Sources with auto-sync whose last sync is older than `before`.
     async fn due_for_sync(&self, before: DateTime<Utc>) -> Result<Vec<SourceId>>;
 }

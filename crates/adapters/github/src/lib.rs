@@ -18,8 +18,8 @@ use git_opt_domain::{
 };
 use reqwest::{Method, RequestBuilder, Response, StatusCode, header};
 use serde::{Deserialize, de::DeserializeOwned};
-use tokio::sync::Mutex;
 pub use token::{EnvToken, GhCliToken, SavedToken, TokenSource};
+use tokio::sync::Mutex;
 
 const CACHE_TTL: Duration = Duration::from_secs(300);
 
@@ -50,13 +50,17 @@ impl GitHub {
     pub fn with_standard_tokens(api: impl Into<String>, secrets: Arc<dyn SecretStore>) -> Result<Self> {
         let api = api.into();
         let host = git_host(&api);
-        Self::new(api, vec![Box::new(SavedToken(secrets)), Box::new(EnvToken::standard()), Box::new(GhCliToken { host })])
+        Self::new(
+            api,
+            vec![Box::new(SavedToken(secrets)), Box::new(EnvToken::standard()), Box::new(GhCliToken { host })],
+        )
     }
 
     async fn require_token(&self) -> Result<AccessToken> {
-        self.credentials().await.map(|(t, _)| t).ok_or_else(|| {
-            anyhow!("no GitHub token: set one in Settings, export GITHUB_TOKEN or run `gh auth login`")
-        })
+        self.credentials()
+            .await
+            .map(|(t, _)| t)
+            .ok_or_else(|| anyhow!("no GitHub token: set one in Settings, export GITHUB_TOKEN or run `gh auth login`"))
     }
 
     async fn request(&self, method: Method, path: &str) -> Result<RequestBuilder> {
@@ -151,7 +155,9 @@ impl CodeForge for GitHub {
         let path = match (kind, owner) {
             (SourceKind::Me, _) => "/user/repos?per_page=100&affiliation=owner,collaborator,organization_member".into(),
             // The public endpoint hides private repositories, even our own.
-            (SourceKind::User, Some(o)) if o.same_as(me.login.as_str()) => "/user/repos?per_page=100&affiliation=owner".into(),
+            (SourceKind::User, Some(o)) if o.same_as(me.login.as_str()) => {
+                "/user/repos?per_page=100&affiliation=owner".into()
+            }
             (SourceKind::User, Some(o)) => format!("/users/{o}/repos?per_page=100&type=owner"),
             (SourceKind::Org, Some(o)) => format!("/orgs/{o}/repos?per_page=100&type=all"),
             (_, None) => bail!("a {} source needs a name", kind.as_str()),
@@ -183,7 +189,11 @@ impl CodeForge for GitHub {
         Ok(pull.into_domain())
     }
 
-    async fn find_open_pull_request(&self, slug: &RepoSlug, head: &PullRequestHead) -> Result<Option<ForgePullRequest>> {
+    async fn find_open_pull_request(
+        &self,
+        slug: &RepoSlug,
+        head: &PullRequestHead,
+    ) -> Result<Option<ForgePullRequest>> {
         let req = self
             .request(Method::GET, &format!("/repos/{slug}/pulls"))
             .await?
@@ -200,7 +210,8 @@ impl CodeForge for GitHub {
         title: &str,
         body: &str,
     ) -> Result<ForgePullRequest> {
-        let head = if head.cross_repository { format!("{}:{}", head.owner, head.branch) } else { head.branch.to_string() };
+        let head =
+            if head.cross_repository { format!("{}:{}", head.owner, head.branch) } else { head.branch.to_string() };
         let req = self.request(Method::POST, &format!("/repos/{slug}/pulls")).await?.json(&serde_json::json!({
             "title": title, "body": body, "head": head, "base": base.as_str(), "maintainer_can_modify": true,
         }));
@@ -208,7 +219,13 @@ impl CodeForge for GitHub {
         Ok(pull.into_domain())
     }
 
-    async fn update_pull_request(&self, slug: &RepoSlug, number: PrNumber, title: &str, body: &str) -> Result<ForgePullRequest> {
+    async fn update_pull_request(
+        &self,
+        slug: &RepoSlug,
+        number: PrNumber,
+        title: &str,
+        body: &str,
+    ) -> Result<ForgePullRequest> {
         let req = self
             .request(Method::PATCH, &format!("/repos/{slug}/pulls/{number}"))
             .await?
@@ -362,7 +379,8 @@ mod tests {
         assert_eq!(repo.default_branch.as_str(), "trunk");
         assert!(repo.read_only && repo.can_push && !repo.is_fork);
 
-        let user: ApiUser = serde_json::from_value(serde_json::json!({ "id": 42, "login": "jdev", "name": "" })).unwrap();
+        let user: ApiUser =
+            serde_json::from_value(serde_json::json!({ "id": 42, "login": "jdev", "name": "" })).unwrap();
         let account = user.into_account().unwrap();
         assert_eq!(account.commit_identity.to_string(), "jdev <42+jdev@users.noreply.github.com>");
 

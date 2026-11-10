@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use git_opt_domain::{
     model::{
-        FileChange, Fork, PrState, PullRequest, RepoMode, RepoStatus, Repository, Run, RunOutcome, RunStatus, RunTrigger,
-        Source, SourceKind,
+        FileChange, Fork, PrState, PullRequest, RepoMode, RepoStatus, Repository, Run, RunOutcome, RunStatus,
+        RunTrigger, Source, SourceKind,
     },
     ports::StoredFileChange,
     values::{

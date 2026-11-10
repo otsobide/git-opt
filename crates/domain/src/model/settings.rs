@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::values::{BranchName, ByteSize, IgnoreRules, Identity, OptimizerId, PollPolicy, SavingsThreshold};
+use crate::values::{BranchName, ByteSize, Identity, IgnoreRules, OptimizerId, PollPolicy, SavingsThreshold};
 
 /// Options handed to format strategies: only what affects their output.
 #[derive(Debug, Clone, PartialEq)]

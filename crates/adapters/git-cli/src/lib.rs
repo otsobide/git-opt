@@ -59,7 +59,8 @@ impl VersionControl for GitCli {
 
     async fn configured_identity(&self) -> Option<Identity> {
         let get = |key: &'static str| async move {
-            let out = run_git(&std::env::temp_dir(), &["config", "--get", key], None, None, LOCAL_TIMEOUT).await.ok()?;
+            let out =
+                run_git(&std::env::temp_dir(), &["config", "--get", key], None, None, LOCAL_TIMEOUT).await.ok()?;
             Some(String::from_utf8_lossy(&out).trim().to_string())
         };
         Identity::new(get("user.name").await?, get("user.email").await?).ok()
@@ -192,7 +193,8 @@ impl Workspace for GitWorkspace {
             tokio::fs::remove_dir_all(&self.dir).await?;
         }
         let target = self.dir.to_string_lossy().to_string();
-        let args = ["clone", "--quiet", "--no-tags", "--single-branch", "--branch", branch.as_str(), url.as_str(), &target];
+        let args =
+            ["clone", "--quiet", "--no-tags", "--single-branch", "--branch", branch.as_str(), url.as_str(), &target];
         self.git_remote(parent, &args, url).await?;
         // The clone belongs to the bot: keep bytes untouched, no detached-HEAD chatter.
         self.git(&["config", "core.autocrlf", "false"]).await?;
@@ -234,7 +236,8 @@ impl Workspace for GitWorkspace {
             let record = String::from_utf8_lossy(record);
             let Some((meta, path)) = record.split_once('\t') else { continue };
             let mut parts = meta.split_whitespace();
-            let (Some(mode), Some(kind), Some(sha), Some(size)) = (parts.next(), parts.next(), parts.next(), parts.next())
+            let (Some(mode), Some(kind), Some(sha), Some(size)) =
+                (parts.next(), parts.next(), parts.next(), parts.next())
             else {
                 continue;
             };
@@ -250,7 +253,8 @@ impl Workspace for GitWorkspace {
 
     async fn blobs_written_by_marked_commits(&self, commit: &CommitSha, marker: &str) -> Result<HashSet<BlobId>> {
         let grep = format!("--grep={marker}");
-        let args = ["log", "--format=%H", "--raw", "--no-abbrev", "--no-renames", "--fixed-strings", &grep, commit.as_str()];
+        let args =
+            ["log", "--format=%H", "--raw", "--no-abbrev", "--no-renames", "--fixed-strings", &grep, commit.as_str()];
         let out = self.git_text(&args).await?;
         Ok(out
             .lines()
@@ -401,7 +405,8 @@ mod tests {
         ws.checkout_new_branch(&branch, &head).await.unwrap();
         ws.write_file(&path, b"new bytes").await.unwrap();
         let author = Identity::new("Jane", "jane@example.com").unwrap();
-        let (commit, blobs) = ws.commit(std::slice::from_ref(&path), "msg\n\nMarker: yes\n", &author, false).await.unwrap();
+        let (commit, blobs) =
+            ws.commit(std::slice::from_ref(&path), "msg\n\nMarker: yes\n", &author, false).await.unwrap();
         assert_eq!(ws.local_head(&branch).await, Some(commit.clone()));
         let new_blob = blobs.get(&path).unwrap().clone();
         let marked = ws.blobs_written_by_marked_commits(&commit, "Marker: yes").await.unwrap();
