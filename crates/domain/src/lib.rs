@@ -3,6 +3,7 @@
 //! implements. Nothing here performs I/O or knows about a framework.
 
 pub mod error;
+pub mod fork_cleanup;
 pub mod model;
 pub mod ports;
 pub mod report;
