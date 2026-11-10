@@ -11,6 +11,7 @@ Guide for agents (and people) working in this repository. Overview: `README.md`.
 ```bash
 cargo build                         # from the root (workspace)
 cargo test --workspace              # every crate's tests
+cargo fmt --all                     # format (rustfmt.toml, 120 columns)
 cargo clippy --workspace --all-targets   # lint (zero warnings)
 cargo check -p git-opt-codecs --no-default-features --features png   # feature subsets must build
 scripts/e2e.sh                      # full flow against a fake GitHub, every format; needs magick, rsvg-convert
@@ -21,7 +22,7 @@ cd frontend && npm run dev          # Vite :5173, proxies /api -> 127.0.0.1:8484
 docker compose up -d --build        # single image (API + UI + git/gifsicle)
 ```
 
-Before calling something done: `cargo test --workspace` and `cargo clippy --workspace --all-targets` with no warnings; if you touched `application`, an adapter or the server, also run `scripts/e2e.sh`; if you touched `frontend/`, run `npm run build`.
+Before calling something done: `cargo fmt --all --check`, `cargo test --workspace` and `cargo clippy --workspace --all-targets` with no warnings; if you touched `application`, an adapter or the server, also run `scripts/e2e.sh`; if you touched `frontend/`, run `npm run build`. CI (`.github/workflows/ci.yml`, described in `docs/development.md`) runs all of this, plus the minimum Rust version and the Docker image, on every pull request.
 
 Keep the documentation true: behavior → `docs/how-it-works.md`, settings/env vars → `docs/configuration.md`, endpoints → `docs/api.md`, UI labels or screens → `docs/usage.md` (and regenerate screenshots), code layout → `docs/architecture.md`, tooling → `docs/development.md`.
 
