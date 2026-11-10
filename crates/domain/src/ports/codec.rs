@@ -118,8 +118,15 @@ mod tests {
     #[tokio::test]
     async fn keeps_only_proven_worthwhile_results() {
         let input = Arc::new(vec![7u8; 1000]);
-        assert!(matches!(attempt(&Halver { honest: true }, input.clone(), &options(1)).await, Outcome::Optimized(v) if v.len() == 500));
-        assert!(matches!(attempt(&Halver { honest: true }, input.clone(), &options(600)).await, Outcome::Optimal(Some(_))));
-        assert!(matches!(attempt(&Halver { honest: false }, input, &options(1)).await, Outcome::Failed(e) if e.contains("pixels differ")));
+        assert!(
+            matches!(attempt(&Halver { honest: true }, input.clone(), &options(1)).await, Outcome::Optimized(v) if v.len() == 500)
+        );
+        assert!(matches!(
+            attempt(&Halver { honest: true }, input.clone(), &options(600)).await,
+            Outcome::Optimal(Some(_))
+        ));
+        assert!(
+            matches!(attempt(&Halver { honest: false }, input, &options(1)).await, Outcome::Failed(e) if e.contains("pixels differ"))
+        );
     }
 }

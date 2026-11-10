@@ -42,10 +42,20 @@ impl DeliveryStrategy for Direct {
     fn preparing_phase(&self) -> Option<&'static str> {
         None
     }
-    async fn destination(&self, _: &Services, _: &Repository, remote: &ForgeRepository, branch: &BranchName) -> Result<Destination> {
+    async fn destination(
+        &self,
+        _: &Services,
+        _: &Repository,
+        remote: &ForgeRepository,
+        branch: &BranchName,
+    ) -> Result<Destination> {
         Ok(Destination {
             push_url: remote.clone_url.clone(),
-            head: PullRequestHead { owner: remote.slug.owner().clone(), branch: branch.clone(), cross_repository: false },
+            head: PullRequestHead {
+                owner: remote.slug.owner().clone(),
+                branch: branch.clone(),
+                cross_repository: false,
+            },
         })
     }
     fn retries_push(&self) -> bool {
@@ -64,7 +74,13 @@ impl DeliveryStrategy for ViaFork {
     fn preparing_phase(&self) -> Option<&'static str> {
         Some("Preparing fork")
     }
-    async fn destination(&self, services: &Services, repo: &Repository, _: &ForgeRepository, branch: &BranchName) -> Result<Destination> {
+    async fn destination(
+        &self,
+        services: &Services,
+        repo: &Repository,
+        _: &ForgeRepository,
+        branch: &BranchName,
+    ) -> Result<Destination> {
         let fork = ensure_fork(services, repo).await?;
         Ok(Destination {
             push_url: fork.clone_url,

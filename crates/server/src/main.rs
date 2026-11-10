@@ -64,9 +64,8 @@ async fn main() -> Result<()> {
             version: env!("CARGO_PKG_VERSION"),
         },
     );
-    let listener = tokio::net::TcpListener::bind(config.bind)
-        .await
-        .with_context(|| format!("cannot bind {}", config.bind))?;
+    let listener =
+        tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
     tracing::info!("listening on http://{}", config.bind);
     axum::serve(listener, router).with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())

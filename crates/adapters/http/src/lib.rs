@@ -187,7 +187,10 @@ fn yes() -> bool {
     true
 }
 
-async fn create_repo(State(s): State<AppState>, Json(body): Json<NewRepoBody>) -> ApiResult<(StatusCode, Json<RepoDto>)> {
+async fn create_repo(
+    State(s): State<AppState>,
+    Json(body): Json<NewRepoBody>,
+) -> ApiResult<(StatusCode, Json<RepoDto>)> {
     let mode = match body.mode.as_deref() {
         None | Some("auto") => ModeRequest::Auto,
         Some("direct") => ModeRequest::Direct,
@@ -213,7 +216,11 @@ fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<i64>>
     Option::<i64>::deserialize(d).map(Some)
 }
 
-async fn patch_repo(State(s): State<AppState>, Path(id): Path<i64>, Json(b): Json<RepoPatchBody>) -> ApiResult<Json<RepoDto>> {
+async fn patch_repo(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+    Json(b): Json<RepoPatchBody>,
+) -> ApiResult<Json<RepoDto>> {
     let mode = b.mode.map(|m| RepoMode::parse(&m).ok_or_else(|| invalid(format!("unknown mode {m:?}")))).transpose()?;
     let changes = RepositoryChanges {
         enabled: b.enabled,
@@ -237,8 +244,11 @@ struct CheckBody {
 }
 
 async fn check_repo(State(s): State<AppState>, Path(id): Path<i64>, body: Bytes) -> ApiResult<StatusCode> {
-    let body: CheckBody =
-        if body.is_empty() { CheckBody::default() } else { serde_json::from_slice(&body).map_err(|e| invalid(e.to_string()))? };
+    let body: CheckBody = if body.is_empty() {
+        CheckBody::default()
+    } else {
+        serde_json::from_slice(&body).map_err(|e| invalid(e.to_string()))?
+    };
     s.services.request_check(RepoId::new(id), body.force).await?;
     Ok(StatusCode::ACCEPTED)
 }
@@ -266,7 +276,11 @@ struct RunsQuery {
     repo_id: Option<i64>,
 }
 
-async fn repo_runs(State(s): State<AppState>, Path(id): Path<i64>, Query(q): Query<RunsQuery>) -> ApiResult<Json<Vec<RunDto>>> {
+async fn repo_runs(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+    Query(q): Query<RunsQuery>,
+) -> ApiResult<Json<Vec<RunDto>>> {
     let runs = s.services.runs(Some(RepoId::new(id)), q.limit.unwrap_or(50)).await?;
     Ok(Json(runs.into_iter().map(RunDto::from).collect()))
 }
@@ -301,13 +315,22 @@ struct NewSourceBody {
     auto_sync: bool,
 }
 
-async fn create_source(State(s): State<AppState>, Json(b): Json<NewSourceBody>) -> ApiResult<(StatusCode, Json<SourceDto>)> {
+async fn create_source(
+    State(s): State<AppState>,
+    Json(b): Json<NewSourceBody>,
+) -> ApiResult<(StatusCode, Json<SourceDto>)> {
     let kind = SourceKind::parse(&b.kind).ok_or_else(|| invalid(format!("unknown source kind {:?}", b.kind)))?;
     let owner = match kind {
         SourceKind::Me => None,
         _ => Some(OwnerName::new(b.name).map_err(|_| invalid("invalid user or organization name"))?),
     };
-    let source = NewSource { kind, owner, include_forks: b.include_forks, include_archived: b.include_archived, auto_sync: b.auto_sync };
+    let source = NewSource {
+        kind,
+        owner,
+        include_forks: b.include_forks,
+        include_archived: b.include_archived,
+        auto_sync: b.auto_sync,
+    };
     Ok((StatusCode::CREATED, Json(s.services.add_source(source).await?.into())))
 }
 
@@ -318,8 +341,13 @@ struct SourcePatchBody {
     auto_sync: Option<bool>,
 }
 
-async fn patch_source(State(s): State<AppState>, Path(id): Path<i64>, Json(b): Json<SourcePatchBody>) -> ApiResult<Json<SourceDto>> {
-    let changes = SourceChanges { include_forks: b.include_forks, include_archived: b.include_archived, auto_sync: b.auto_sync };
+async fn patch_source(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+    Json(b): Json<SourcePatchBody>,
+) -> ApiResult<Json<SourceDto>> {
+    let changes =
+        SourceChanges { include_forks: b.include_forks, include_archived: b.include_archived, auto_sync: b.auto_sync };
     Ok(Json(s.services.update_source(SourceId::new(id), changes).await?.into()))
 }
 
@@ -329,7 +357,11 @@ struct DeleteSourceQuery {
     delete_repos: bool,
 }
 
-async fn delete_source(State(s): State<AppState>, Path(id): Path<i64>, Query(q): Query<DeleteSourceQuery>) -> ApiResult<StatusCode> {
+async fn delete_source(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+    Query(q): Query<DeleteSourceQuery>,
+) -> ApiResult<StatusCode> {
     s.services.remove_source(SourceId::new(id), q.delete_repos).await?;
     Ok(StatusCode::NO_CONTENT)
 }

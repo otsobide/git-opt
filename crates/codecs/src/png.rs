@@ -32,7 +32,12 @@ impl FormatStrategy for Oxipng {
         "**PNG/APNG**: re-compressed with [oxipng](https://github.com/shssoichiro/oxipng) (filters, deflate, lossless color-type reduction; every animation frame)."
     }
     fn profile(&self, s: &CodecOptions) -> Profile {
-        Profile::new(format!("oxipng10:l{}:strip{}:zopfli{}", s.png_level, u8::from(s.strip_metadata), u8::from(s.png_zopfli)))
+        Profile::new(format!(
+            "oxipng10:l{}:strip{}:zopfli{}",
+            s.png_level,
+            u8::from(s.strip_metadata),
+            u8::from(s.png_zopfli)
+        ))
     }
 
     async fn probe(&self) -> std::result::Result<String, String> {

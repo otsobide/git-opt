@@ -128,15 +128,20 @@ pub(super) fn recompress(input: &[u8], level: c_int) -> Result<Vec<u8>> {
     let (rgba, width, height) = decode_rgba(input)?;
     let encoded = encode_lossless(&rgba, width, height, level)?;
     let fresh = chunks(&encoded)?;
-    let bitstream = fresh
-        .iter()
-        .find(|c| &c.fourcc == b"VP8L")
-        .ok_or_else(|| anyhow!("libwebp produced no lossless bitstream"))?;
+    let bitstream =
+        fresh.iter().find(|c| &c.fourcc == b"VP8L").ok_or_else(|| anyhow!("libwebp produced no lossless bitstream"))?;
 
-    let rebuilt: Vec<Chunk<'_>> = original
-        .iter()
-        .map(|c| if &c.fourcc == b"VP8L" { Chunk { fourcc: *b"VP8L", payload: bitstream.payload } } else { Chunk { ..*c } })
-        .collect();
+    let rebuilt: Vec<Chunk<'_>> =
+        original
+            .iter()
+            .map(|c| {
+                if &c.fourcc == b"VP8L" {
+                    Chunk { fourcc: *b"VP8L", payload: bitstream.payload }
+                } else {
+                    Chunk { ..*c }
+                }
+            })
+            .collect();
     Ok(assemble(&rebuilt))
 }
 

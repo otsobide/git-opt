@@ -110,11 +110,12 @@ impl JobQueue {
     pub fn set_phase(&self, repo: RepoId, slug: &RepoSlug, phase: impl Into<String>) {
         let mut inner = self.inner.lock().unwrap();
         let phase = phase.into();
-        inner
-            .progress
-            .entry(repo)
-            .and_modify(|p| p.phase.clone_from(&phase))
-            .or_insert_with(|| RunningJob { repo, slug: slug.clone(), phase, started_at: Utc::now() });
+        inner.progress.entry(repo).and_modify(|p| p.phase.clone_from(&phase)).or_insert_with(|| RunningJob {
+            repo,
+            slug: slug.clone(),
+            phase,
+            started_at: Utc::now(),
+        });
     }
 
     /// (running repo jobs with their phase, queued repo ids)
@@ -137,11 +138,7 @@ impl JobQueue {
     pub fn repo_state(&self, repo: RepoId) -> (bool, bool, Option<String>) {
         let inner = self.inner.lock().unwrap();
         let key = JobKey::Repo(repo);
-        (
-            inner.running.contains(&key),
-            inner.queued.contains(&key),
-            inner.progress.get(&repo).map(|p| p.phase.clone()),
-        )
+        (inner.running.contains(&key), inner.queued.contains(&key), inner.progress.get(&repo).map(|p| p.phase.clone()))
     }
 
     pub fn is_queued_or_running(&self, key: JobKey) -> bool {

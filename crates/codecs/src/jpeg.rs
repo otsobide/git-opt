@@ -89,13 +89,9 @@ impl FormatStrategy for Mozjpeg {
 pub fn transcode(input: &[u8], progressive: bool) -> Result<Vec<u8>> {
     match catch_unwind(AssertUnwindSafe(|| unsafe { transcode_unchecked(input, progressive) })) {
         Ok(result) => result,
-        Err(payload) => Err(anyhow!(
-            "{}",
-            payload
-                .downcast_ref::<String>()
-                .cloned()
-                .unwrap_or_else(|| "libjpeg failed".into())
-        )),
+        Err(payload) => {
+            Err(anyhow!("{}", payload.downcast_ref::<String>().cloned().unwrap_or_else(|| "libjpeg failed".into())))
+        }
     }
 }
 
@@ -226,7 +222,8 @@ pub(super) fn metadata_segments(data: &[u8]) -> Result<Vec<(u8, &[u8])>> {
             0x01 | 0xD0..=0xD7 => continue,     // markers without a length
             _ => {}
         }
-        let len = u16::from_be_bytes([data.get(pos).copied().unwrap_or(0), data.get(pos + 1).copied().unwrap_or(0)]) as usize;
+        let len =
+            u16::from_be_bytes([data.get(pos).copied().unwrap_or(0), data.get(pos + 1).copied().unwrap_or(0)]) as usize;
         ensure!(len >= 2 && pos + len <= data.len(), "truncated JPEG segment");
         if matches!(marker, 0xE0..=0xEF | 0xFE) {
             segments.push((marker, &data[pos + 2..pos + len]));
@@ -251,19 +248,12 @@ fn is_adobe(segment: &(u8, &[u8])) -> bool {
 fn same_metadata(original: &[u8], candidate: &[u8]) -> Result<()> {
     let before = metadata_segments(original)?;
     let after = metadata_segments(candidate)?;
-    ensure!(
-        before.iter().any(is_adobe) == after.iter().any(is_adobe),
-        "Adobe color transform marker changed"
-    );
+    ensure!(before.iter().any(is_adobe) == after.iter().any(is_adobe), "Adobe color transform marker changed");
     if let Some(jfif) = before.iter().find(|s| is_jfif(s)) {
         ensure!(after.iter().find(|s| is_jfif(s)) == Some(jfif), "JFIF header changed");
     }
     let other = |segments: Vec<(u8, &'_ [u8])>| -> Vec<(u8, Vec<u8>)> {
-        segments
-            .into_iter()
-            .filter(|s| !is_adobe(s) && !is_jfif(s))
-            .map(|(m, p)| (m, p.to_vec()))
-            .collect()
+        segments.into_iter().filter(|s| !is_adobe(s) && !is_jfif(s)).map(|(m, p)| (m, p.to_vec())).collect()
     };
     ensure!(other(before) == other(after), "JPEG metadata (APPn/COM segments) changed");
     Ok(())

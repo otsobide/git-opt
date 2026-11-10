@@ -59,10 +59,7 @@ pub fn same_gif_frames(original: &[u8], candidate: &[u8]) -> Result<()> {
 /// count and loop count) and identical composited frames with their delays.
 pub fn same_apng(original: &[u8], candidate: &[u8]) -> Result<()> {
     same_pixels(original, candidate, ImageFormat::Png)?;
-    ensure!(
-        png_chunk(original, b"acTL") == png_chunk(candidate, b"acTL"),
-        "animation control (acTL) changed"
-    );
+    ensure!(png_chunk(original, b"acTL") == png_chunk(candidate, b"acTL"), "animation control (acTL) changed");
     let a = PngDecoder::new(Cursor::new(original)).context("cannot decode original apng")?;
     let b = PngDecoder::new(Cursor::new(candidate)).context("cannot decode optimized apng")?;
     ensure!(b.is_apng()?, "animation was lost");

@@ -42,7 +42,6 @@ use git_opt_domain::{
     values::{FileFormat, Profile},
 };
 
-
 const XML_NS: &str = "http://www.w3.org/XML/1998/namespace";
 const BOM: &str = "\u{feff}";
 
@@ -78,8 +77,7 @@ fn is_editor_ns(uri: &str) -> bool {
 
 fn is_legal_comment(text: &str) -> bool {
     let lower = text.to_lowercase();
-    text.starts_with('!')
-        || ["copyright", "license", "licence", "©", "(c)", "spdx"].iter().any(|w| lower.contains(w))
+    text.starts_with('!') || ["copyright", "license", "licence", "©", "(c)", "spdx"].iter().any(|w| lower.contains(w))
 }
 
 fn is_xml_whitespace(s: &str) -> bool {
@@ -308,10 +306,8 @@ pub(super) fn clean(input: &str) -> Result<String> {
     out.push_str(bom);
 
     let mut entities: HashMap<&str, &str> = HashMap::new();
-    let mut scopes: Vec<Scope> = vec![Scope {
-        namespaces: HashMap::from([("xml".to_string(), XML_NS.to_string())]),
-        preserve: false,
-    }];
+    let mut scopes: Vec<Scope> =
+        vec![Scope { namespaces: HashMap::from([("xml".to_string(), XML_NS.to_string())]), preserve: false }];
     let mut pending: Option<StartTag> = None;
     let mut skip_depth = 0usize; // > 0 while inside a removed element
     let mut dtd_start: Option<usize> = None;
@@ -455,10 +451,7 @@ fn new_scope(tag: &StartTag, scopes: &[Scope], entities: &HashMap<&str, &str>) -
 
 /// Namespace URI bound to `prefix` ("" = default namespace).
 fn resolve(prefix: &str, current: &Scope, scopes: &[Scope]) -> Option<String> {
-    std::iter::once(current)
-        .chain(scopes.iter().rev())
-        .find_map(|s| s.namespaces.get(prefix))
-        .cloned()
+    std::iter::once(current).chain(scopes.iter().rev()).find_map(|s| s.namespaces.get(prefix)).cloned()
 }
 
 // ------------------------------------------------------------ verification
@@ -520,7 +513,12 @@ fn write_children(node: roxmltree::Node, preserve: bool, out: &mut String) {
                     })
                     .collect();
                 attrs.sort();
-                out.push_str(&format!("E{:?}{:?}[{}](", name.namespace().unwrap_or_default(), name.name(), attrs.join(",")));
+                out.push_str(&format!(
+                    "E{:?}{:?}[{}](",
+                    name.namespace().unwrap_or_default(),
+                    name.name(),
+                    attrs.join(",")
+                ));
                 let preserve_child = match child.attribute((XML_NS, "space")) {
                     Some("preserve") => true,
                     Some("default") => false,
@@ -537,7 +535,8 @@ fn write_children(node: roxmltree::Node, preserve: bool, out: &mut String) {
 
 /// Renders at a size where every detail counts (longest side 768 px).
 fn render(svg: &[u8]) -> Result<tiny_skia::Pixmap> {
-    let tree = usvg::Tree::from_data(svg, &usvg::Options::default()).map_err(|e| anyhow!("resvg cannot read it: {e}"))?;
+    let tree =
+        usvg::Tree::from_data(svg, &usvg::Options::default()).map_err(|e| anyhow!("resvg cannot read it: {e}"))?;
     let size = tree.size();
     let scale = 768.0 / size.width().max(size.height());
     let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
@@ -676,7 +675,10 @@ mod tests {
     }
 
     fn bloated_png(shift: u8) -> Vec<u8> {
-        use image::{ExtendedColorType, ImageEncoder, codecs::png::{CompressionType, FilterType, PngEncoder}};
+        use image::{
+            ExtendedColorType, ImageEncoder,
+            codecs::png::{CompressionType, FilterType, PngEncoder},
+        };
         let rgba: Vec<u8> = (0..64u32 * 64)
             .flat_map(|i| [(i % 64) as u8 * 4, ((i / 64) as u8 * 4).wrapping_add(shift), 120, 255])
             .collect();
@@ -694,7 +696,12 @@ mod tests {
     /// Two embedded PNGs: one plain, one with the base64 wrapped by `&#10;`
     /// line breaks the way Illustrator writes it.
     fn svg_with_images(first: &[u8], second: &[u8]) -> String {
-        let wrapped = b64(second).as_bytes().chunks(76).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join("&#10;");
+        let wrapped = b64(second)
+            .as_bytes()
+            .chunks(76)
+            .map(|c| std::str::from_utf8(c).unwrap())
+            .collect::<Vec<_>>()
+            .join("&#10;");
         format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 128 64"><image width="64" height="64" href="data:image/png;base64,{}"/><image x="64" width="64" height="64" xlink:href="data:image/png;base64,{wrapped}"/></svg>"#,
             b64(first)

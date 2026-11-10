@@ -61,7 +61,12 @@ pub fn pull_request_body(changes: &[FileChange], explain: impl Fn(&OptimizerId) 
     body.push_str("| File | Before | After | Saved |\n|:--|--:|--:|--:|\n");
     for c in sorted(changes).iter().take(MAX_PR_ROWS) {
         let path = c.path.as_str().replace('|', "\\|").replace('`', "'");
-        body.push_str(&format!("| `{path}` | {} | {} | {} |\n", c.savings.before, c.savings.after, percent(&c.savings)));
+        body.push_str(&format!(
+            "| `{path}` | {} | {} | {} |\n",
+            c.savings.before,
+            c.savings.after,
+            percent(&c.savings)
+        ));
     }
     if changes.len() > MAX_PR_ROWS {
         body.push_str(&format!("| …and {} more | | | |\n", changes.len() - MAX_PR_ROWS));

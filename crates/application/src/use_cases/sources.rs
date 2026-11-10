@@ -28,8 +28,9 @@ impl Services {
             _ => Some(source.owner.ok_or_else(|| AppError::Invalid("a user or organization name is required".into()))?),
         };
         let duplicate = p.sources.list().await?.iter().any(|s| {
-            s.kind == source.kind && s.owner.as_ref().map(OwnerName::as_str).map(str::to_ascii_lowercase)
-                == source.owner.as_ref().map(OwnerName::as_str).map(str::to_ascii_lowercase)
+            s.kind == source.kind
+                && s.owner.as_ref().map(OwnerName::as_str).map(str::to_ascii_lowercase)
+                    == source.owner.as_ref().map(OwnerName::as_str).map(str::to_ascii_lowercase)
         });
         if duplicate {
             return Err(AppError::Conflict("that source already exists".into()));

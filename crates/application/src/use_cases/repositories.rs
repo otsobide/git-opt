@@ -75,7 +75,9 @@ impl Services {
                 anyhow::bail!("no push access to {}: add it in fork (contribution) mode", remote.slug)
             }
             ModeRequest::Direct => RepoMode::Direct,
-            ModeRequest::Fork if own => anyhow::bail!("{} is yours: GitHub does not let you fork your own repository", remote.slug),
+            ModeRequest::Fork if own => {
+                anyhow::bail!("{} is yours: GitHub does not let you fork your own repository", remote.slug)
+            }
             ModeRequest::Fork => RepoMode::Fork,
         };
         let new = NewRepository {

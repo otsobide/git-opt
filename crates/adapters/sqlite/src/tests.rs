@@ -1,9 +1,5 @@
 use chrono::{DateTime, Utc};
-use git_opt_domain::{
-    model::*,
-    ports::*,
-    values::*,
-};
+use git_opt_domain::{model::*, ports::*, values::*};
 
 use crate::SqliteStore;
 
@@ -43,7 +39,13 @@ async fn repositories_round_trip_with_targeted_updates() {
     RepositoryStore::update(&db, id, &changes).await.unwrap();
     db.record_check(
         id,
-        &CheckRecord { status: RepoStatus::Ok, error: None, seen: Some(CommitSha::new(sha('a')).unwrap()), checked_at: now(), next_check_at: now() },
+        &CheckRecord {
+            status: RepoStatus::Ok,
+            error: None,
+            seen: Some(CommitSha::new(sha('a')).unwrap()),
+            checked_at: now(),
+            next_check_at: now(),
+        },
     )
     .await
     .unwrap();

@@ -15,7 +15,8 @@ use crate::{
 #[async_trait]
 impl SourceStore for SqliteStore {
     async fn list(&self) -> Result<Vec<Source>> {
-        let rows: Vec<SourceRow> = sqlx::query_as("SELECT * FROM sources ORDER BY kind, name").fetch_all(&self.pool).await?;
+        let rows: Vec<SourceRow> =
+            sqlx::query_as("SELECT * FROM sources ORDER BY kind, name").fetch_all(&self.pool).await?;
         convert(rows)
     }
 
@@ -70,7 +71,13 @@ impl SourceStore for SqliteStore {
         convert(removed)
     }
 
-    async fn mark_synced(&self, id: SourceId, at: DateTime<Utc>, repo_count: Option<u32>, error: Option<&str>) -> Result<()> {
+    async fn mark_synced(
+        &self,
+        id: SourceId,
+        at: DateTime<Utc>,
+        repo_count: Option<u32>,
+        error: Option<&str>,
+    ) -> Result<()> {
         sqlx::query(
             "UPDATE sources SET last_synced_at = ?, last_error = ?, repo_count = COALESCE(?, repo_count) WHERE id = ?",
         )
