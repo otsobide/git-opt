@@ -63,7 +63,8 @@ Body: a full `Settings` object (missing fields take their defaults). Values are 
   "max_file_size_mb": 30, "png_level": 3, "png_zopfli": false, "strip_metadata": false,
   "optimizers": { "gifsicle": false }, "ignore_globs": "docs/\n*.min.png",
   "branch_name": "git-opt/optimize-images", "commit_title": "[git-opt] Optimize images",
-  "commit_author_name": "", "commit_author_email": "", "sign_commits": true
+  "commit_author_name": "", "commit_author_email": "", "sign_commits": true,
+  "delete_merged_forks": true
 }
 ```
 
@@ -133,7 +134,7 @@ Runs of one repository, newest first.
 
 ## Runs
 
-A **Run**: `id`, `repo_id`, `repo_full_name`, `trigger` (`schedule` | `manual` | `publish`), `status` (`no_changes` | `up_to_date` | `awaiting_approval` | `pr_opened` | `pr_updated` | `error`), `started_at`, `finished_at`, `head_sha`, `commit_sha`, `files_scanned`, `files_optimized`, `bytes_before`, `bytes_after`, `pr_number`, `pr_url`, `message`.
+A **Run**: `id`, `repo_id`, `repo_full_name`, `trigger` (`schedule` | `manual` | `publish`), `status` (`no_changes` | `up_to_date` | `awaiting_approval` | `pr_opened` | `pr_updated` | `fork_deleted` | `error`), `started_at`, `finished_at`, `head_sha`, `commit_sha`, `files_scanned`, `files_optimized`, `bytes_before`, `bytes_after`, `pr_number`, `pr_url`, `message`.
 
 ### `GET /api/runs?limit=100&repo_id=3`
 Newest first; `limit` is capped at 500.

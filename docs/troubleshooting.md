@@ -24,6 +24,9 @@ The repository is in direct mode but the token cannot push (permissions changed,
 **"refusing to allow an OAuth App to create or update workflow … without `workflow` scope"**
 Pushing to a fork that is behind an upstream that changed `.github/workflows` requires the `workflow` scope. Use a classic PAT with `repo` + `workflow`, or `gh auth refresh -s workflow`.
 
+**"could not delete the fork: the token needs the delete_repo scope"**
+Every pull request from your fork was merged, but the token cannot delete repositories. Run `gh auth refresh -s delete_repo` (or add the scope to your classic PAT), or untick **Delete my fork once all its pull requests are merged** in Settings. The error is recorded once; the next check tries again.
+
 **"fork owner/name was not ready after 60s"**
 GitHub creates forks asynchronously and can be slow for big repositories. The next check reuses the fork once it exists.
 
