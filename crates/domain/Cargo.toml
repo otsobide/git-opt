@@ -2,7 +2,7 @@
 name = "git-opt-domain"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "git-opt core: value objects, entities, ports and policies. No I/O."
 
 [dependencies]

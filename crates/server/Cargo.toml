@@ -2,7 +2,7 @@
 name = "git-opt"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "Self-hosted lossless image optimization bot for git repositories (composition root)"
 
 [dependencies]

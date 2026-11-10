@@ -2,7 +2,7 @@
 name = "git-opt-codecs"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "git-opt format strategies: one lossless optimizer per file format, each behind a feature"
 
 [features]

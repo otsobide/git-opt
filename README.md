@@ -89,7 +89,7 @@ export GIT_OPT_ADMIN_TOKEN=$(openssl rand -hex 24)   # the UI will ask for it
 docker compose up -d --build                          # → http://localhost:8484
 ```
 
-From source (Rust ≥ 1.88 with a C compiler, Node ≥ 20, git; plus `gifsicle` for GIF):
+From source (Rust ≥ 1.94 with a C compiler, Node ≥ 20, git; plus `gifsicle` for GIF):
 
 ```bash
 (cd frontend && npm ci && npm run build)
