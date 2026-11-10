@@ -1,5 +1,7 @@
 # git-opt
 
+[![CI](https://github.com/otsobide/git-opt/actions/workflows/ci.yml/badge.svg)](https://github.com/otsobide/git-opt/actions/workflows/ci.yml)
+
 **A self-hosted bot that keeps the images in your GitHub repositories losslessly optimized, and opens the pull requests in your name.**
 
 You point it at repositories (yours, your organization's, or third-party projects you want to contribute to). It keeps a clone of each one, notices when the default branch changes, recompresses every image that was never optimized, **proves** the result is pixel-identical, and opens or updates a PR. It is the ImgBot idea, running on your own machine, acting as you.
@@ -118,11 +120,14 @@ The token is taken from the UI's Settings, then `GITHUB_TOKEN`/`GH_TOKEN`, then 
 
 ```bash
 cargo test --workspace                     # domain, use cases, adapters, codecs
+cargo fmt --all --check                    # formatting
 cargo clippy --workspace --all-targets     # zero warnings
 (cd frontend && npm run build)             # type-check + build the UI
 scripts/e2e.sh                             # full flow against a fake GitHub, never touches github.com
 scripts/demo.sh                            # explore the UI with sample repositories
 ```
+
+[CI](.github/workflows/ci.yml) runs all of these, plus a minimum Rust version check and a Docker image build, on every pull request.
 
 The code is a Cargo workspace in hexagonal architecture:
 
