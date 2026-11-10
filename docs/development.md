@@ -6,7 +6,7 @@ Everything needed to work on git-opt: setup, the dev loop, tests, the fake GitHu
 
 | Tool | Why |
 |---|---|
-| Rust ≥ 1.88 (edition 2024) | every crate |
+| Rust ≥ 1.94 (edition 2024) | every crate |
 | Node ≥ 22 and npm | frontend; the screenshot script uses Node's built-in `WebSocket` |
 | git | runtime dependency and tests |
 | a C compiler (gcc/clang) | builds the bundled SQLite, libdeflate, mozjpeg and libwebp (no nasm or libclang needed) |

@@ -2,7 +2,7 @@
 name = "git-opt-github"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "git-opt adapter: the CodeForge port implemented with the GitHub REST API"
 
 [dependencies]

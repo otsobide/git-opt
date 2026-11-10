@@ -2,7 +2,7 @@
 name = "git-opt-http"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "git-opt driving adapter: the JSON API (axum) and the static web UI"
 
 [dependencies]
