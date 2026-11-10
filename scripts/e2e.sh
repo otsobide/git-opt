@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test against a fake GitHub API (scripts/mock-github.py) and local
 # bare repositories. Never talks to github.com.
-# Needs: cargo, git, python3, curl and ImageMagick (`magick`).
+# Needs: cargo, git, python3, curl, ImageMagick (`magick`) and librsvg (`rsvg-convert`).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -13,7 +13,7 @@ PIDS=()
 cleanup() { kill "${PIDS[@]}" 2>/dev/null || true; rm -rf "$WORK"; }
 trap cleanup EXIT
 
-for tool in cargo git python3 curl magick; do
+for tool in cargo git python3 curl magick rsvg-convert; do
   command -v "$tool" >/dev/null || { echo "missing $tool"; exit 1; }
 done
 
@@ -164,6 +164,11 @@ assert list(a) == list(b) and a[b"is32"] == b[b"is32"]
 open(sys.argv[3] + "/orig-ic07.png", "wb").write(a[b"ic07"]); open(sys.argv[3] + "/new-ic07.png", "wb").write(b[b"ic07"])
 PY
     ae=$(magick compare -metric AE "$WORK/orig-ic07.png" "$WORK/new-ic07.png" null: 2>&1 || true)
+  elif [[ $ext == svg* ]]; then
+    # Render with librsvg explicitly: some ImageMagick builds use their own SVG renderer.
+    rsvg-convert -o "$WORK/orig-render.png" "$WORK/orig.$ext" && rsvg-convert -o "$WORK/new-render.png" "$WORK/new.$ext" \
+      || fail "$f could not be rendered"
+    ae=$(magick compare -metric AE "$WORK/orig-render.png" "$WORK/new-render.png" null: 2>&1 || true)
   else
     ae=$(magick compare -metric AE "$WORK/orig.$ext" "$WORK/new.$ext" null: 2>&1 || true)
   fi

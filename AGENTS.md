@@ -13,7 +13,7 @@ cargo build                         # from the root (workspace)
 cargo test --workspace              # every crate's tests
 cargo clippy --workspace --all-targets   # lint (zero warnings)
 cargo check -p git-opt-codecs --no-default-features --features png   # feature subsets must build
-scripts/e2e.sh                      # full flow against a fake GitHub, every format; needs magick
+scripts/e2e.sh                      # full flow against a fake GitHub, every format; needs magick, rsvg-convert
 scripts/demo.sh                     # UI with sample repos on :18484, fake GitHub, no github.com
 scripts/demo.sh --screenshots docs/screenshots   # regenerate the README/docs screenshots (dark)
 cd frontend && npm ci && npm run build   # type-check (vue-tsc) + build into frontend/dist
