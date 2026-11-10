@@ -120,7 +120,12 @@ async fn verdicts_settings_and_token() {
     assert_eq!(VerdictCache::get(&db, &blob, &profile).await.unwrap(), Some(verdict));
 
     assert_eq!(SettingsStore::load(&db).await.unwrap(), Settings::default());
-    let settings = Settings { png_level: 5, branch: BranchName::new("bot/images").unwrap(), ..Settings::default() };
+    let settings = Settings {
+        png_level: 5,
+        branch: BranchName::new("bot/images").unwrap(),
+        delete_merged_forks: false,
+        ..Settings::default()
+    };
     SettingsStore::save(&db, &settings).await.unwrap();
     assert_eq!(SettingsStore::load(&db).await.unwrap(), settings);
 

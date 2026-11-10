@@ -130,6 +130,7 @@ export interface Settings {
   commit_author_name: string
   commit_author_email: string
   sign_commits: boolean
+  delete_merged_forks: boolean
 }
 
 export interface SettingsResponse {
