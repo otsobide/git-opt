@@ -21,6 +21,8 @@ pub enum RunStatus {
     AwaitingApproval,
     PrOpened,
     PrUpdated,
+    /// The developer's fork was deleted: every pull request from it is merged.
+    ForkDeleted,
     Error,
 }
 named_enum!(RunStatus {
@@ -29,6 +31,7 @@ named_enum!(RunStatus {
     AwaitingApproval => "awaiting_approval",
     PrOpened => "pr_opened",
     PrUpdated => "pr_updated",
+    ForkDeleted => "fork_deleted",
     Error => "error",
 });
 

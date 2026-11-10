@@ -11,6 +11,7 @@ const MAP: Record<RunStatus, { cls: string; text: string }> = {
   awaiting_approval: { cls: 'warn', text: 'Awaiting approval' },
   pr_opened: { cls: 'ok', text: 'PR opened' },
   pr_updated: { cls: 'ok', text: 'PR updated' },
+  fork_deleted: { cls: '', text: 'Fork deleted' },
   error: { cls: 'danger', text: 'Error' },
 }
 
