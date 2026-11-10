@@ -166,6 +166,19 @@ With **Open PRs automatically** off, the commit stays in the local clone and the
 - **Closed without merging**: those files are never proposed again for that repository.
 - **Still open while new images arrive**: the branch is rebuilt with the old and the new optimizations and the PR is updated in place.
 
+### 3.8 Deleting merged forks
+
+Deleting a fork closes the pull requests that come from it, so git-opt only deletes your fork when nothing needs it any more. After each successful check of a repository in **fork mode**, with **Delete my fork once all its pull requests are merged** on (the default), it deletes the fork when all of this holds:
+
+1. git-opt's latest pull request on that repository was **merged**, and no commit is waiting for approval;
+2. GitHub confirms the repository is a **fork of that project** and belongs to **your account**;
+3. no pull request from **any branch** of the fork (yours included, not just git-opt's) is still open;
+4. every branch of the fork is either exactly what a merged pull request delivered, or has no commit that the project's default branch lacks.
+
+If any of them fails, the fork stays and is looked at again on the next check. A pull request closed without merging keeps git-opt's branch unmerged, so the fork stays too. When the fork is deleted, the run is recorded as `fork_deleted` and the repository forgets the fork; if git-opt has something to propose later, it forks again.
+
+Repositories in **direct mode** (your own, or any you can push to) are never touched, and the project itself is never deleted: the only repository git-opt can delete is your fork. Deleting needs a token with the `delete_repo` scope; without it, the attempt is recorded once as an error and the check itself still succeeds.
+
 ## 4. What gets recorded
 
 Each check that does something (or that you trigger manually) is stored as a **run** with its trigger (`schedule`, `manual`, `publish`), its result, the default branch commit, the bot commit, the number of images scanned and optimized, bytes before and after, the PR, and a message for errors. Runs that changed files keep the per-file details. Errors are recorded too, but the same error repeating on every scheduled check is stored only once.
@@ -176,11 +189,13 @@ Each check that does something (or that you trigger manually) is stored as a **r
 | `up_to_date` | something changed but there is nothing left to optimize |
 | `awaiting_approval` | a commit is ready locally, waiting for **Open PR** |
 | `pr_opened` / `pr_updated` | the branch was pushed and the PR created or updated |
+| `fork_deleted` | every pull request from your fork was merged and the fork was deleted ([3.8](#38-deleting-merged-forks)) |
 | `error` | see the message; the repository will be retried at the next interval |
 
 ## 5. Security model
 
 - git-opt acts **as you**. Anything it does on GitHub (forks, branches, PRs) appears under your account, with your token's permissions.
+- The only repository it ever deletes is **your own fork** of a project in fork mode, after checking it is a fork of that project and that nothing in it would be lost ([3.8](#38-deleting-merged-forks)).
 - The token is never passed on a command line or embedded in a URL: it is given to `git` as an HTTP `Authorization` header through `GIT_CONFIG_COUNT/KEY/VALUE` environment variables, and to the GitHub API as a bearer token. It is never logged or returned by the API.
 - The web UI and API have no users. Bind them to localhost (the default) or set `GIT_OPT_ADMIN_TOKEN`, which then must be sent as `Authorization: Bearer …` (the UI asks for it).
 - Clones are private to the bot; it never runs repository hooks.

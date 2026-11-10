@@ -12,7 +12,7 @@ You point it at repositories (yours, your organization's, or third-party project
 - **Runs on its own.** Each repository is checked every 20 minutes plus a random delay of up to 20 minutes, in the background, a few at a time.
 - **Remembers what it did, in git.** Its commits carry a marker, so it recognizes already-optimized images from the commit history, whether its PR was merged, rebased or squashed, and even after a reinstall.
 - **Acts as you.** Commits use your `git config` identity; pushes and PRs use your GitHub token. No bot account, no GitHub App.
-- **Contributes to other projects.** If you can't push to a repository, it forks it into your account and opens the PR from there. You can review every result before the PR goes out.
+- **Contributes to other projects.** If you can't push to a repository, it forks it into your account and opens the PR from there, and deletes the fork once everything from it is merged. You can review every result before the PR goes out.
 - **Scales to whole accounts.** Import all repositories of a user, an organization, or everything you can access, and new ones are picked up automatically.
 - **One container.** Rust backend, Vue UI with light and dark themes, SQLite, system `git`: one Docker image, or one binary.
 - **Swappable parts.** Hexagonal architecture: the core only talks to ports, so the database, git, GitHub and every image library are adapters that can be replaced (or, for codecs, compiled out) without touching the rest.

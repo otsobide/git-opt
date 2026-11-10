@@ -30,8 +30,8 @@ The resolved token is cached for 5 minutes. The Dashboard shows which source is 
 
 | Token type | Works? | Notes |
 |---|---|---|
-| `gh auth login` (OAuth) | yes | Has `repo`, `read:org` and `workflow` scopes by default. |
-| Classic PAT | yes | Needs `repo` and `workflow`. `workflow` is required to push a branch to a fork whose upstream contains GitHub Actions workflows. |
+| `gh auth login` (OAuth) | yes | Has `repo`, `read:org` and `workflow` scopes by default. Add `delete_repo` to delete merged forks: `gh auth refresh -s delete_repo`. |
+| Classic PAT | yes | Needs `repo` and `workflow`. `workflow` is required to push a branch to a fork whose upstream contains GitHub Actions workflows. Add `delete_repo` to delete merged forks. |
 | Fine-grained PAT | partly | Works for your own repositories with *Contents* and *Pull requests* read/write. Forking third-party repositories is generally not possible with fine-grained tokens; use a classic PAT or `gh` for fork mode. |
 
 ## Global settings
@@ -54,6 +54,7 @@ The resolved token is cached for 5 minutes. The Dashboard shows which source is 
 | Commits and PRs → Commit and PR title | `commit_title` | `[git-opt] Optimize images` | | Subject of the commit and title of the PR. |
 | Commits and PRs → Commit author / Author email | `commit_author_name`, `commit_author_email` | empty | | Override the commit author. Both must be set. See [author resolution](how-it-works.md#35-commit). |
 | Commits and PRs → Sign commits | `sign_commits` | on | | When off, passes `-c commit.gpgsign=false` to git. |
+| Commits and PRs → Delete my fork once all its pull requests are merged | `delete_merged_forks` | on | | Fork mode only: deletes your fork when no pull request from it is open and none of its branches has unmerged commits. See [deleting merged forks](how-it-works.md#38-deleting-merged-forks). Needs the `delete_repo` token scope. |
 
 Changing the interval or the jitter reschedules repositories whose next check would otherwise be later than the new interval allows.
 

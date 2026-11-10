@@ -86,6 +86,7 @@ Global settings, grouped in **Checks**, **Optimization**, **Ignored files**, **C
 - **PNG compression effort**: from *fast* to *maximum savings, very slow*.
 - **Commit author** / **Author email**: leave empty to use your git config.
 - **Sign commits**: untick if the server cannot reach your signing key.
+- **Delete my fork once all its pull requests are merged**: in fork mode, deletes your fork when nothing in it is unmerged (on by default; the token needs the `delete_repo` scope).
 - **GitHub**: save a token (it is validated and never shown again) or **Remove saved token** to fall back to environment variables or `gh`.
 
 ## Recipes
@@ -94,7 +95,7 @@ Global settings, grouped in **Checks**, **Optimization**, **Ignored files**, **C
 **Sources → All my repositories** (or *User* with your login) → **Import repositories**. Leave **Open PRs automatically** on. New repositories you create are picked up at the next re-sync.
 
 ### Contribute to an open-source project
-**Repositories → Add**: `owner/project`, *Automatic* mode (it becomes *Fork*), and untick **Open PRs automatically** so you can review the result first. When it shows **Awaiting approval**, read the run, then press **Open PR**. The PR comes from `you:git-opt/optimize-images` with *allow edits by maintainers* enabled. If the maintainers close it without merging, git-opt will not propose those files again.
+**Repositories → Add**: `owner/project`, *Automatic* mode (it becomes *Fork*), and untick **Open PRs automatically** so you can review the result first. When it shows **Awaiting approval**, read the run, then press **Open PR**. The PR comes from `you:git-opt/optimize-images` with *allow edits by maintainers* enabled. If the maintainers close it without merging, git-opt will not propose those files again. Once it is merged, and no other pull request from your fork is open, git-opt deletes the fork (Activity shows **Fork deleted**); untick **Delete my fork once all its pull requests are merged** in Settings to keep it.
 
 ### Keep some files untouched
 Add patterns to **Ignored files**, globally in Settings or per repository: `docs/screenshots/`, `*.min.png`, `assets/raw/**`. The next check skips them. Already open PRs are rebuilt without them at the next check if the default branch moves; press **Force check** to rebuild now.
