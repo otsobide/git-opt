@@ -88,7 +88,8 @@ pub trait RepositoryStore: Send + Sync {
     async fn update(&self, id: RepoId, changes: &RepositoryChanges) -> Result<()>;
     async fn delete(&self, id: RepoId) -> Result<Option<Repository>>;
     async fn update_origin(&self, id: RepoId, clone_url: &CloneUrl, default_branch: &BranchName) -> Result<()>;
-    async fn set_fork(&self, id: RepoId, fork: &Fork) -> Result<()>;
+    /// Remembers the developer's fork, or forgets it (`None`) once deleted.
+    async fn set_fork(&self, id: RepoId, fork: Option<&Fork>) -> Result<()>;
     /// Enabled repositories whose next check is due.
     async fn due(&self, now: DateTime<Utc>) -> Result<Vec<RepoId>>;
     async fn schedule(&self, id: RepoId, at: DateTime<Utc>) -> Result<()>;

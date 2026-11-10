@@ -63,6 +63,15 @@ async fn repositories_round_trip_with_targeted_updates() {
     assert_eq!(repo.bytes_saved, ByteSize::new(100));
     assert!(db.due(now()).await.unwrap().is_empty(), "disabled repositories are never due");
 
+    let fork = Fork {
+        slug: RepoSlug::parse("jdev/site").unwrap(),
+        clone_url: CloneUrl::new("https://github.com/jdev/site.git").unwrap(),
+    };
+    db.set_fork(id, Some(&fork)).await.unwrap();
+    assert_eq!(RepositoryStore::get(&db, id).await.unwrap().unwrap().fork, Some(fork));
+    db.set_fork(id, None).await.unwrap();
+    assert_eq!(RepositoryStore::get(&db, id).await.unwrap().unwrap().fork, None);
+
     let totals = db.totals().await.unwrap();
     assert_eq!((totals.repos, totals.repos_enabled, totals.prs_open), (1, 0, 1));
 }
