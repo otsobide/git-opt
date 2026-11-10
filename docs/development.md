@@ -11,7 +11,7 @@ Everything needed to work on git-opt: setup, the dev loop, tests, the fake GitHu
 | git | runtime dependency and tests |
 | a C compiler (gcc/clang) | builds the bundled SQLite, libdeflate, mozjpeg and libwebp (no nasm or libclang needed) |
 | `gifsicle` | GIF optimizer, the only external tool; its test is skipped when missing |
-| python3, curl, ImageMagick (`magick`) | `scripts/e2e.sh` and `scripts/demo.sh` build fixtures and compare pixels |
+| python3, curl, ImageMagick (`magick`), librsvg (`rsvg-convert`) | `scripts/e2e.sh` and `scripts/demo.sh` build fixtures, render SVGs and compare pixels |
 | Chromium or Chrome | `scripts/screenshots.mjs` |
 | Docker | building the image |
 
