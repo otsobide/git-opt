@@ -194,4 +194,17 @@ curl -fs -X POST "$API/repos/2/publish" && wait_idle 2
 [[ $(last_run 2 status) == pr_opened ]] || fail "publish did not open a PR: $(last_run 2 message)"
 git -C "$WORK/fork.git" rev-parse -q --verify git-opt/optimize-images >/dev/null || fail "branch not pushed to fork"
 
+step "contribution merged -> fork kept while it holds unmerged work, then deleted"
+curl -fs -X POST "http://127.0.0.1:$API_PORT/_mock/merge/2" >/dev/null
+git -C "$WORK/fork.git" branch wip git-opt/optimize-images   # a commit the upstream does not have
+curl -fs -X POST "$API/repos/2/check" && wait_idle 2
+[[ $(curl -fs "$API/repos/2" | json "d['fork_full_name']") == jdev/thirdparty ]] || fail "fork deleted with unmerged work"
+[[ $(last_run 2 status) == no_changes ]] || fail "expected the fork to be kept quietly: $(last_run 2 message)"
+git -C "$WORK/fork.git" branch -q -D wip
+curl -fs -X POST "$API/repos/2/check" && wait_idle 2
+[[ $(last_run 2 status) == fork_deleted ]] || fail "expected fork_deleted, got $(last_run 2 status): $(last_run 2 message)"
+[[ $(curl -fs "$API/repos/2" | json "d['fork_full_name']") == None ]] || fail "fork still recorded"
+deleted=$(curl -fs "http://127.0.0.1:$API_PORT/_mock/deleted" | json "' '.join(d)")
+[[ $deleted == "jdev/thirdparty" ]] || fail "deleted on GitHub: $deleted"
+
 echo; echo "e2e OK"
