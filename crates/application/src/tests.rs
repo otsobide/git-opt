@@ -77,6 +77,8 @@ struct FakeForge {
     /// Branch name -> commits it has that the upstream default branch lacks (0 when missing).
     ahead: Mutex<HashMap<String, u64>>,
     deleted: Mutex<Vec<RepoSlug>>,
+    /// Refuse deletions, like a token without the delete_repo scope.
+    deny_delete: Mutex<bool>,
 }
 
 impl FakeForge {
@@ -100,6 +102,9 @@ impl FakeForge {
         }
     }
     /// The bare repository behind a forge repository.
+    fn deleted(&self) -> Vec<RepoSlug> {
+        self.deleted.lock().unwrap().clone()
+    }
     fn bare(&self, slug: &RepoSlug) -> Option<PathBuf> {
         let repos = self.repos.lock().unwrap();
         let repo = repos.get(&slug.to_string().to_lowercase())?;
@@ -219,6 +224,9 @@ impl CodeForge for FakeForge {
         Ok(self.ahead.lock().unwrap().get(head.branch.as_str()).copied().unwrap_or(0))
     }
     async fn delete_repository(&self, slug: &RepoSlug) -> Result<()> {
+        if *self.deny_delete.lock().unwrap() {
+            return Err(anyhow!("403: needs the delete_repo scope"));
+        }
         self.repos.lock().unwrap().remove(&slug.to_string().to_lowercase()).ok_or_else(|| anyhow!("404"))?;
         self.deleted.lock().unwrap().push(slug.clone());
         Ok(())
@@ -264,6 +272,29 @@ fn forge_repo(slug: &str, bare: &Path, can_push: bool) -> ForgeRepository {
         read_only: false,
         can_push,
     }
+}
+
+/// The developer's fork of `upstream`, as the forge describes it.
+fn fork_of(upstream: &str, slug: &str, bare: &Path) -> ForgeRepository {
+    ForgeRepository { is_fork: true, parent: Some(RepoSlug::parse(upstream).unwrap()), ..forge_repo(slug, bare, true) }
+}
+
+/// A third-party repository in fork mode whose bot pull request was just merged.
+async fn merged_contribution(tmp: &Path) -> (Arc<FakeForge>, Arc<Services>, RepoId, PathBuf) {
+    let upstream = bare_repo(tmp, "lib");
+    let fork_bare = tmp.join("fork.git");
+    git(tmp, &["clone", "-q", "--bare", upstream.to_str().unwrap(), fork_bare.to_str().unwrap()]);
+    let forge = Arc::new(FakeForge::default());
+    forge.add(forge_repo("other/lib", &upstream, false));
+    forge.forks.lock().unwrap().insert("other/lib".into(), fork_of("other/lib", "jdev/lib", &fork_bare));
+    let app = services(tmp, forge.clone()).await;
+    let repo = app.add_repository("other/lib", ModeRequest::Auto, true).await.unwrap().repository;
+    assert_eq!(repo.mode, RepoMode::Fork);
+    app.check_repository(repo.id, RunTrigger::Manual, false).await.unwrap();
+    assert_eq!(forge.pulls().len(), 1);
+    assert!(forge.deleted().is_empty(), "never while the pull request is open");
+    forge.set_pull_state(PrState::Merged);
+    (forge, app, repo.id, fork_bare)
 }
 
 async fn services(tmp: &Path, forge: Arc<FakeForge>) -> Arc<Services> {
@@ -393,4 +424,75 @@ async fn adding_twice_or_forking_your_own_repository_is_refused() {
         app.add_repository("not a repo", ModeRequest::Auto, true).await,
         Err(crate::AppError::Invalid(_))
     ));
+}
+
+#[tokio::test]
+async fn merged_forks_are_deleted_once_nothing_else_lives_there() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (forge, app, id, fork_bare) = merged_contribution(tmp.path()).await;
+
+    // The developer has unmerged work on another branch of the fork.
+    git(&fork_bare, &["branch", "wip", "main"]);
+    forge.ahead.lock().unwrap().insert("wip".into(), 2);
+    app.check_repository(id, RunTrigger::Manual, false).await.unwrap();
+    assert!(forge.deleted().is_empty(), "unmerged commits keep the fork");
+
+    // That work becomes an open pull request: still kept.
+    let head = PullRequestHead {
+        owner: OwnerName::new("jdev").unwrap(),
+        branch: BranchName::new("wip").unwrap(),
+        cross_repository: true,
+    };
+    let pr = ForgePullRequest { number: PrNumber::new(2), url: "u".into(), state: PrState::Open };
+    forge.pulls.lock().unwrap().push((RepoSlug::parse("other/lib").unwrap(), head, pr));
+    app.check_repository(id, RunTrigger::Manual, false).await.unwrap();
+    assert!(forge.deleted().is_empty(), "an open pull request keeps the fork");
+
+    // Merged as well: the fork goes, once.
+    forge.set_pull_state(PrState::Merged);
+    app.check_repository(id, RunTrigger::Schedule, false).await.unwrap();
+    assert_eq!(forge.deleted(), vec![RepoSlug::parse("jdev/lib").unwrap()]);
+    let runs = app.runs(Some(id), 10).await.unwrap();
+    assert_eq!(runs[0].outcome.status, RunStatus::ForkDeleted);
+    assert!(runs[0].outcome.message.as_deref().unwrap().contains("jdev/lib"));
+    assert!(app.repository(id).await.unwrap().repository.fork.is_none());
+    app.check_repository(id, RunTrigger::Schedule, false).await.unwrap();
+    assert_eq!((forge.deleted().len(), app.runs(Some(id), 10).await.unwrap().len()), (1, runs.len()));
+}
+
+#[tokio::test]
+async fn forks_stay_when_the_setting_is_off_or_in_direct_mode() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (forge, app, id, _) = merged_contribution(tmp.path()).await;
+
+    let settings = app.settings().await.unwrap();
+    app.update_settings(Settings { delete_merged_forks: false, ..settings.clone() }).await.unwrap();
+    app.check_repository(id, RunTrigger::Manual, false).await.unwrap();
+    assert!(forge.deleted().is_empty(), "setting off");
+
+    app.update_settings(settings).await.unwrap();
+    let direct = RepositoryChanges { mode: Some(RepoMode::Direct), ..Default::default() };
+    app.update_repository(id, direct).await.unwrap();
+    app.check_repository(id, RunTrigger::Manual, false).await.unwrap();
+    assert!(forge.deleted().is_empty(), "direct mode never deletes anything");
+}
+
+#[tokio::test]
+async fn a_failed_deletion_is_reported_once() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (forge, app, id, _) = merged_contribution(tmp.path()).await;
+    *forge.deny_delete.lock().unwrap() = true;
+
+    app.check_repository(id, RunTrigger::Manual, false).await.unwrap();
+    let runs = app.runs(Some(id), 10).await.unwrap();
+    assert_eq!(runs[0].outcome.status, RunStatus::Error);
+    assert!(runs[0].outcome.message.as_deref().unwrap().contains("delete_repo"));
+    let repo = app.repository(id).await.unwrap().repository;
+    assert_eq!(repo.status, RepoStatus::Ok, "the check itself succeeded");
+    app.check_repository(id, RunTrigger::Schedule, false).await.unwrap();
+    assert_eq!(app.runs(Some(id), 10).await.unwrap().len(), runs.len(), "no duplicate rows");
+
+    *forge.deny_delete.lock().unwrap() = false;
+    app.check_repository(id, RunTrigger::Schedule, false).await.unwrap();
+    assert_eq!(app.runs(Some(id), 1).await.unwrap()[0].outcome.status, RunStatus::ForkDeleted);
 }

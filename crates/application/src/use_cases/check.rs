@@ -60,7 +60,8 @@ impl Services {
 
         match result {
             Ok(Checked { outcome, files }) => {
-                let pending = p.repositories.get(id).await?.is_some_and(|r| r.pending_commit.is_some());
+                let current = p.repositories.get(id).await?;
+                let pending = current.as_ref().is_some_and(|r| r.pending_commit.is_some());
                 let status = if pending { RepoStatus::AwaitingApproval } else { RepoStatus::Ok };
                 let record = CheckRecord {
                     status,
@@ -75,6 +76,9 @@ impl Services {
                     p.runs.record(id, trigger, started, now, &outcome, &files).await?;
                 }
                 tracing::info!(repo = %repo.slug, status = %outcome.status, "check finished");
+                if let Some(current) = current {
+                    self.tidy_fork(&current, &settings, trigger).await?;
+                }
             }
             Err(e) => {
                 let message = format!("{e:#}");
