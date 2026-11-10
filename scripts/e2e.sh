@@ -39,7 +39,28 @@ magick -size 300x200 gradient:red-blue -define png:compression-level=0 img/big.p
 magick -size 64x64 xc:white -fill black -draw "circle 32,32 32,10" -define png:compression-level=0 img/icon.png
 magick -size 400x300 plasma:fractal -seed 7 -quality 92 -define jpeg:optimize-coding=false img/photo.jpg
 magick -size 160x120 plasma:fractal -seed 3 -define webp:lossless=true -define webp:method=0 img/photo.webp
-magick -delay 10 -size 64x64 plasma:fractal -seed 1 plasma:fractal -seed 2 plasma:fractal -seed 3 apng:img/anim.png
+python3 -I - img/anim.png <<'PY'   # APNG with three frames, stored uncompressed (ImageMagick needs ffmpeg for APNG)
+import struct, sys, zlib
+W = H = 64
+def chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+def pixels(n):
+    rows = (b"\0" + bytes(c for x in range(W) for c in ((x * 4 + n * 40) % 256, y * 4, (x + y + n * 60) % 256))
+            for y in range(H))
+    return zlib.compress(b"".join(rows), 0)
+out = [b"\x89PNG\r\n\x1a\n", chunk(b"IHDR", struct.pack(">IIBBBBB", W, H, 8, 2, 0, 0, 0)), chunk(b"acTL", struct.pack(">II", 3, 0))]
+seq = 0
+for n in range(3):
+    out.append(chunk(b"fcTL", struct.pack(">IIIIIHHBB", seq, W, H, 0, 0, 10, 100, 0, 0)))
+    seq += 1
+    if n == 0:
+        out.append(chunk(b"IDAT", pixels(n)))
+    else:
+        out.append(chunk(b"fdAT", struct.pack(">I", seq) + pixels(n)))
+        seq += 1
+out.append(chunk(b"IEND", b""))
+open(sys.argv[1], "wb").write(b"".join(out))
+PY
 magick -size 128x128 radial-gradient:'#f59e0b'-'#1d4ed8' -define png:compression-level=0 "$WORK/fav.png"
 python3 -I - "$WORK/fav.png" img/favicon.ico <<'PY'   # ICO with one PNG entry (ImageMagick writes BMP)
 import struct, sys
