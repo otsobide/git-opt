@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use crate::{
     model::{PrState, SourceKind},
-    values::{AccessToken, BranchName, CloneUrl, Identity, OwnerName, PrNumber, RepoSlug},
+    values::{AccessToken, BranchName, CloneUrl, CommitSha, Identity, OwnerName, PrNumber, RepoSlug},
 };
 
 /// Where the developer's token came from.
@@ -42,6 +42,8 @@ pub struct ForgeRepository {
     pub clone_url: CloneUrl,
     pub default_branch: BranchName,
     pub is_fork: bool,
+    /// For a fork, the repository it was forked from (when the forge says so).
+    pub parent: Option<RepoSlug>,
     /// Archived or disabled: it cannot receive pull requests.
     pub read_only: bool,
     /// The developer's token can push to it.
@@ -53,6 +55,22 @@ pub struct ForgePullRequest {
     pub number: PrNumber,
     pub url: String,
     pub state: PrState,
+}
+
+/// A branch and the commit it points to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForgeBranch {
+    pub name: BranchName,
+    pub head: CommitSha,
+}
+
+/// A pull request, as seen from the branch it comes from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BranchPullRequest {
+    pub number: PrNumber,
+    pub state: PrState,
+    /// Its last commit (it stops following the branch once merged or closed).
+    pub head: CommitSha,
 }
 
 /// The branch a pull request comes from.
@@ -102,4 +120,16 @@ pub trait CodeForge: Send + Sync {
         title: &str,
         body: &str,
     ) -> anyhow::Result<ForgePullRequest>;
+    /// Every branch of a repository, with its current commit.
+    async fn branches(&self, slug: &RepoSlug) -> anyhow::Result<Vec<ForgeBranch>>;
+    /// Every pull request into `slug` from `head`, in any state.
+    async fn pull_requests_from(
+        &self,
+        slug: &RepoSlug,
+        head: &PullRequestHead,
+    ) -> anyhow::Result<Vec<BranchPullRequest>>;
+    /// How many commits of `head` (a branch in `slug`'s fork network) are not in `base`.
+    async fn commits_ahead(&self, slug: &RepoSlug, base: &BranchName, head: &PullRequestHead) -> anyhow::Result<u64>;
+    /// Deletes a repository. Only ever used for the developer's own forks.
+    async fn delete_repository(&self, slug: &RepoSlug) -> anyhow::Result<()>;
 }

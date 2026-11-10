@@ -12,7 +12,10 @@ mod system;
 mod vcs;
 
 pub use codec::{FormatStrategy, Outcome, attempt};
-pub use forge::{CodeForge, ForgeAccount, ForgePullRequest, ForgeRepository, PullRequestHead, TokenOrigin};
+pub use forge::{
+    BranchPullRequest, CodeForge, ForgeAccount, ForgeBranch, ForgePullRequest, ForgeRepository, PullRequestHead,
+    TokenOrigin,
+};
 pub use storage::{
     CheckRecord, RejectionStore, RepositoryStore, RunStore, SecretStore, SettingsStore, SourceStore, StoredFileChange,
     Totals, VerdictCache,
