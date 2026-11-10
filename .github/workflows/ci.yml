@@ -55,6 +55,22 @@ jobs:
             echo "::endgroup::"
           done
 
+  msrv:
+    name: Minimum Rust version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the rust-version declared by the crates
+        run: |
+          msrv=$(cargo metadata --no-deps --format-version 1 --locked \
+            | jq -r '[.packages[].rust_version] | unique | if length == 1 then .[0] else error("crates declare different rust-version values: \(.)") end')
+          echo "rust-version: $msrv"
+          rustup toolchain install "$msrv" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$msrv" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --all-targets --locked
+
   frontend:
     name: UI (type-check, build)
     runs-on: ubuntu-latest
