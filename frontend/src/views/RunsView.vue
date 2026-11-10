@@ -25,7 +25,7 @@ const visible = computed(() => {
   const q = search.value.trim().toLowerCase()
   return runs.value.filter(
     (r) =>
-      (!onlyChanges.value || r.files_optimized > 0 || r.status === 'error') &&
+      (!onlyChanges.value || r.files_optimized > 0 || r.status === 'error' || r.status === 'fork_deleted') &&
       (!q || (r.repo_full_name ?? '').toLowerCase().includes(q)),
   )
 })
@@ -84,7 +84,12 @@ const TRIGGER: Record<string, string> = { schedule: 'Scheduled', manual: 'Manual
             <td class="muted">{{ TRIGGER[r.trigger] ?? r.trigger }}</td>
             <td>
               <RunStatusTag :status="r.status" />
-              <div v-if="r.status === 'error' && r.message" class="error-text clamp" :title="r.message">
+              <div
+                v-if="r.message"
+                class="clamp"
+                :class="r.status === 'error' ? 'error-text' : 'note-text'"
+                :title="r.message"
+              >
                 {{ r.message }}
               </div>
             </td>

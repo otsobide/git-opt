@@ -76,6 +76,7 @@ export type RunStatus =
   | 'awaiting_approval'
   | 'pr_opened'
   | 'pr_updated'
+  | 'fork_deleted'
   | 'error'
 
 export interface Run {
